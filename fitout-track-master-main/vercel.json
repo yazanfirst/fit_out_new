@@ -1,14 +1,11 @@
 {
   "cleanUrls": true,
   "rewrites": [
-    { "source": "/(.*)", "destination": "/" }
-  ],
-  "functions": {
-    "api/*.js": {
-      "memory": 1024,
-      "maxDuration": 10
+    {
+      "source": "/(.*)",
+      "destination": "/"
     }
-  },
+  ],
   "headers": [
     {
       "source": "/(.*)",
