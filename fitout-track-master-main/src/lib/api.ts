@@ -1,6 +1,7 @@
 import { Project, ProjectStatus, TimelineMilestone, Drawing, ItemCategory, ProjectItem, Invoice, InvoiceStatus } from './types';
 import { supabase, STORAGE_BUCKETS, sanitizeUuid, validateId, sanitizeString } from '@/integrations/supabase/client';
 import { getPublicStorageUrl } from './storage';
+import { createAuditLog, getCurrentUser } from './auth';
 
 // Helper function removed as we'll always use database
 
@@ -245,6 +246,18 @@ export async function createItem(item: Omit<ProjectItem, 'id'>): Promise<Project
       completionPercentage: data.completion_percentage ?? 0,
       workDescription: data.work_description ?? ''
     };
+
+    // Audit log for INSERT
+    const currentUser = await getCurrentUser();
+    if (currentUser) {
+      await createAuditLog(
+        currentUser.id,
+        'INSERT',
+        'project_items',
+        data.id,
+        { new: data }
+      );
+    }
     
     return transformedData as ProjectItem;
   } catch (error) {
@@ -267,6 +280,13 @@ export async function updateItem(id: string, updates: Partial<ProjectItem>): Pro
       delete dbUpdates.workDescription;
     }
     
+    // Get old data for audit log
+    const { data: oldData } = await supabase
+      .from('project_items')
+      .select('*')
+      .eq('id', id)
+      .single();
+
     const { data, error } = await supabase
       .from('project_items')
       .update(dbUpdates)
@@ -284,6 +304,18 @@ export async function updateItem(id: string, updates: Partial<ProjectItem>): Pro
       completionPercentage: data.completion_percentage ?? 0,
       workDescription: data.work_description ?? ''
     };
+
+    // Audit log for UPDATE
+    const currentUser = await getCurrentUser();
+    if (currentUser) {
+      await createAuditLog(
+        currentUser.id,
+        'UPDATE',
+        'project_items',
+        id,
+        { old: oldData, updates: dbUpdates, new: data }
+      );
+    }
     
     return transformedData as ProjectItem;
   } catch (error) {
@@ -294,6 +326,13 @@ export async function updateItem(id: string, updates: Partial<ProjectItem>): Pro
 
 export async function deleteItem(id: string): Promise<boolean> {
   try {
+    // Get old data for audit log
+    const { data: oldData } = await supabase
+      .from('project_items')
+      .select('*')
+      .eq('id', id)
+      .single();
+
     const { error } = await supabase
       .from('project_items')
       .delete()
@@ -302,6 +341,18 @@ export async function deleteItem(id: string): Promise<boolean> {
     if (error) {
       console.error("Error deleting item:", error);
       throw error;
+    }
+
+    // Audit log for DELETE
+    const currentUser = await getCurrentUser();
+    if (currentUser) {
+      await createAuditLog(
+        currentUser.id,
+        'DELETE',
+        'project_items',
+        id,
+        { old: oldData }
+      );
     }
     return true;
   } catch (error) {
