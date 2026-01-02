@@ -41,7 +41,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import Navbar from '@/components/Navbar';
 import { Project, ProjectStatus, Drawing } from '@/lib/types';
-import { getProjects, getTimelineByProjectId, getItemsByProjectId, getDrawingsByProjectId, getSnagsByProjectIds } from '@/lib/api';
+import { getProjects, getTimelineByProjectId, getItemsByProjectId, getDrawingsByProjectId, getItemsByProjectIds, getSnagsByProjectIds } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Progress } from '@/components/ui/progress';
@@ -53,6 +53,7 @@ import TimelineChart from '@/components/Charts/TimelineChart';
 import { generatePdfReport, ReportConfig } from '@/utils/reportGenerator';
 import ProjectReport from '@/components/Reports/ProjectReport';
 import SnagsReport from '@/components/Reports/SnagsReport';
+import ItemsProgressBrief from '@/components/Reports/ItemsProgressBrief';
 
 const Reports = () => {
   const navigate = useNavigate();
@@ -115,6 +116,12 @@ const Reports = () => {
     : null;
 
   const filteredProjectIds = useMemo(() => filteredProjects.map(project => project.id), [filteredProjects]);
+
+  const { data: itemsByProject = [] } = useQuery({
+    queryKey: ['items', filteredProjectIds],
+    queryFn: () => getItemsByProjectIds(filteredProjectIds),
+    enabled: filteredProjectIds.length > 0
+  });
 
   const { data: snags = [] } = useQuery({
     queryKey: ['snags', filteredProjectIds],
@@ -325,6 +332,7 @@ const Reports = () => {
                     <TabsList>
                       <TabsTrigger value="table">Table View</TabsTrigger>
                       <TabsTrigger value="charts">Charts</TabsTrigger>
+                      <TabsTrigger value="items-brief">Brief Items Progress</TabsTrigger>
                       <TabsTrigger value="snags">Snags</TabsTrigger>
                     </TabsList>
                   </Tabs>
@@ -492,6 +500,10 @@ const Reports = () => {
                       />
                     </div>
                   </div>
+                </TabsContent>
+
+                <TabsContent value="items-brief" className="p-0 m-0">
+                  <ItemsProgressBrief projects={filteredProjects} items={itemsByProject} />
                 </TabsContent>
 
                 <TabsContent value="snags" className="p-0 m-0">

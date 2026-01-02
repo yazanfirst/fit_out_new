@@ -210,6 +210,36 @@ export async function getItemsByProjectId(projectId: string): Promise<ProjectIte
   }
 }
 
+export async function getItemsByProjectIds(projectIds: string[]): Promise<ProjectItem[]> {
+  if (projectIds.length === 0) {
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('project_items')
+      .select('*')
+      .in('project_id', projectIds)
+      .order('created_at');
+
+    if (error) {
+      console.error("Error fetching items by project IDs:", error);
+      throw error;
+    }
+
+    const transformedData = data.map(item => ({
+      ...item,
+      completionPercentage: item.completion_percentage ?? 0,
+      workDescription: item.work_description ?? ''
+    }));
+
+    return transformedData as ProjectItem[];
+  } catch (error) {
+    console.error("Unexpected error fetching items by project IDs:", error);
+    return [];
+  }
+}
+
 export async function createItem(item: Omit<ProjectItem, 'id' | 'created_at' | 'updated_at'>): Promise<ProjectItem | null> {
   try {
     // Transform client-side property names to database column names

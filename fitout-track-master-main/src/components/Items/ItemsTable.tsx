@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Edit, Trash2, Plus, Filter } from 'lucide-react';
+import { Edit, Trash2, Plus, Filter, Upload } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -90,6 +91,8 @@ const ItemsTable: React.FC<ItemsTableProps> = ({ projectId }) => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [customCategory, setCustomCategory] = useState<string>('');
   const [isCustomCategory, setIsCustomCategory] = useState<boolean>(false);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   
   const { data: rawItems = [], isLoading } = useQuery({
     queryKey: ['projectItems', projectId],
@@ -345,6 +348,120 @@ const ItemsTable: React.FC<ItemsTableProps> = ({ projectId }) => {
     }
   };
 
+  const normalizeStatus = (value: string): ItemStatus => {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'ordered') return 'Ordered';
+    if (normalized === 'not ordered' || normalized === 'not ordered ') return 'Not Ordered';
+    if (normalized === 'partially ordered' || normalized === 'partial') return 'Partially Ordered';
+    if (normalized === 'delivered') return 'Delivered';
+    if (normalized === 'installed' || normalized === 'complete') return 'Installed';
+    return 'Not Ordered';
+  };
+
+  const normalizeLpoStatus = (value: string): LPOStatus => {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'lpo received') return 'LPO Received';
+    if (normalized === 'n/a' || normalized === 'na') return 'N/A';
+    return 'LPO Pending';
+  };
+
+  const normalizeScope = (value: string): ProjectScope => {
+    const normalized = value.trim().toLowerCase();
+    if (normalized.includes('contractor')) return 'Contractor';
+    return 'Owner';
+  };
+
+  const handleExcelUpload = async (file: File) => {
+    try {
+      setIsUploading(true);
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      if (!worksheet) {
+        toast.error('No worksheet found in the Excel file.');
+        return;
+      }
+
+      const rows = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: '' });
+      if (rows.length === 0) {
+        toast.error('The Excel file is empty.');
+        return;
+      }
+
+      const lookupValue = (row: Record<string, any>, keys: string[]) => {
+        const entry = keys.find((key) => Object.prototype.hasOwnProperty.call(row, key));
+        if (entry) return row[entry];
+        const lowerCaseRow = Object.keys(row).reduce<Record<string, any>>((acc, key) => {
+          acc[key.toLowerCase()] = row[key];
+          return acc;
+        }, {});
+        const lowerKey = keys.map((key) => key.toLowerCase()).find((key) => key in lowerCaseRow);
+        return lowerKey ? lowerCaseRow[lowerKey] : '';
+      };
+
+      const itemsToCreate: Omit<ProjectItem, 'id'>[] = rows
+        .map((row) => {
+          const name = String(lookupValue(row, ['name', 'item', 'item name'])).trim();
+          if (!name) return null;
+
+          const category = String(lookupValue(row, ['category'])).trim() || 'S/S Items';
+          const quantityValue = lookupValue(row, ['quantity', 'qty']);
+          const quantity = Math.max(1, parseInt(String(quantityValue), 10) || 1);
+          const statusValue = String(lookupValue(row, ['status'])).trim();
+          const company = String(lookupValue(row, ['company', 'vendor'])).trim();
+          const lpoValue = String(lookupValue(row, ['lpo_status', 'lpo status', 'lpo'])).trim();
+          const notes = String(lookupValue(row, ['notes', 'note'])).trim();
+          const scopeValue = String(lookupValue(row, ['scope'])).trim();
+          const completionValue = lookupValue(row, ['completion', 'completionPercentage', 'completion_percentage']);
+          const workDescription = String(lookupValue(row, ['workDescription', 'work_description', 'work'])).trim();
+
+          return {
+            project_id: projectId,
+            name,
+            category,
+            quantity,
+            status: normalizeStatus(statusValue),
+            company,
+            lpo_status: normalizeLpoStatus(lpoValue),
+            notes,
+            scope: normalizeScope(scopeValue),
+            completionPercentage: parseInt(String(completionValue), 10) || 0,
+            workDescription,
+          };
+        })
+        .filter((item): item is Omit<ProjectItem, 'id'> => item !== null);
+
+      if (itemsToCreate.length === 0) {
+        toast.error('No valid rows found. Please check the template and try again.');
+        return;
+      }
+
+      const results = await Promise.allSettled(itemsToCreate.map((item) => createItem(item)));
+      const successCount = results.filter((result) => result.status === 'fulfilled').length;
+      const failureCount = results.length - successCount;
+
+      if (successCount > 0) {
+        const newProgress = await calculateProjectProgress(projectId);
+        await updateProject(projectId, { progress: newProgress });
+        queryClient.invalidateQueries({ queryKey: ['projectItems'] });
+        queryClient.invalidateQueries({ queryKey: ['projects'] });
+      }
+
+      if (failureCount > 0) {
+        toast.warning(`Uploaded ${successCount} items, ${failureCount} failed.`);
+      } else {
+        toast.success(`Uploaded ${successCount} items successfully.`);
+      }
+      setIsUploadModalOpen(false);
+    } catch (error) {
+      console.error('Error uploading Excel file:', error);
+      toast.error('Failed to upload items. Please verify the file format.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <Card className="w-full">
@@ -409,13 +526,22 @@ const ItemsTable: React.FC<ItemsTableProps> = ({ projectId }) => {
               </Select>
             </div>
             
-            <Button 
-              className="ml-auto"
-              onClick={() => handleOpenModal()}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Item
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-end w-full sm:w-auto">
+              <Button
+                variant="outline"
+                onClick={() => setIsUploadModalOpen(true)}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Upload Excel
+              </Button>
+              <Button 
+                className="ml-auto"
+                onClick={() => handleOpenModal()}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Item
+              </Button>
+            </div>
           </div>
         </div>
       </CardHeader>
@@ -793,6 +919,52 @@ const ItemsTable: React.FC<ItemsTableProps> = ({ projectId }) => {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Upload Items (Excel)</DialogTitle>
+            <DialogDescription>
+              Upload an .xlsx file to add multiple items. Use the columns below for best results.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="rounded-md border p-3 text-sm text-muted-foreground">
+              <p className="font-medium text-gray-700 mb-2">Supported columns</p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>name, category, quantity, status</li>
+                <li>company, lpo_status, notes, scope</li>
+                <li>completionPercentage, workDescription</li>
+              </ul>
+              <p className="mt-2 text-xs">
+                Status values: Ordered, Not Ordered, Partially Ordered, Delivered, Installed.
+                Scope values: Owner or Contractor.
+              </p>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="items-upload">Select Excel file</Label>
+              <Input
+                id="items-upload"
+                type="file"
+                accept=".xlsx"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) {
+                    handleExcelUpload(file);
+                    event.target.value = '';
+                  }
+                }}
+                disabled={isUploading}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsUploadModalOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </Card>
