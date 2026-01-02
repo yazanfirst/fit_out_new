@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { PackageCheck } from 'lucide-react';
+import { Download, PackageCheck } from 'lucide-react';
 import { Project, ProjectItem } from '@/lib/types';
 import {
   Card,
@@ -16,14 +16,16 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
 interface ItemsProgressBriefProps {
   projects: Project[];
   items: ProjectItem[];
+  onExport?: () => void;
 }
 
-const ItemsProgressBrief: React.FC<ItemsProgressBriefProps> = ({ projects, items }) => {
-  const summary = useMemo(() => {
+const ItemsProgressBrief: React.FC<ItemsProgressBriefProps> = ({ projects, items, onExport }) => {
+  const groupedByProject = useMemo(() => {
     const grouped = new Map<string, ProjectItem[]>();
     items.forEach((item) => {
       if (!grouped.has(item.project_id)) {
@@ -34,87 +36,132 @@ const ItemsProgressBrief: React.FC<ItemsProgressBriefProps> = ({ projects, items
 
     return projects.map((project) => {
       const projectItems = grouped.get(project.id) || [];
-      const installedCount = projectItems.filter((item) => item.status === 'Installed').length;
-      const totalCount = projectItems.length;
-      const completionRate = totalCount > 0 ? Math.round((installedCount / totalCount) * 100) : 0;
-      const statusLabel =
-        completionRate >= 80 ? 'On Track' : completionRate >= 50 ? 'Needs Attention' : 'At Risk';
-
       return {
         project,
-        totalCount,
-        installedCount,
-        completionRate,
-        statusLabel,
+        ownerItems: projectItems.filter((item) => item.scope === 'Owner'),
+        contractorItems: projectItems.filter((item) => item.scope === 'Contractor'),
       };
     });
   }, [projects, items]);
 
-  const getStatusTone = (status: string) => {
-    switch (status) {
-      case 'On Track':
-        return 'bg-emerald-500';
-      case 'Needs Attention':
-        return 'bg-amber-500';
-      case 'At Risk':
-        return 'bg-rose-500';
-      default:
-        return 'bg-gray-400';
-    }
-  };
-
   return (
     <Card className="shadow-md">
-      <CardHeader>
+      <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <CardTitle className="flex items-center gap-2">
           <PackageCheck className="h-5 w-5 text-emerald-600" />
           Brief Items Progress
         </CardTitle>
+        {onExport ? (
+          <Button variant="outline" onClick={onExport}>
+            <Download className="h-4 w-4 mr-2" />
+            Export PDF
+          </Button>
+        ) : null}
       </CardHeader>
-      <CardContent>
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Project</TableHead>
-                <TableHead>Total Items</TableHead>
-                <TableHead>Installed</TableHead>
-                <TableHead>Completion</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Last Updated</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {summary.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
-                    No projects available for this report.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                summary.map(({ project, totalCount, installedCount, completionRate, statusLabel }) => (
-                  <TableRow key={project.id}>
-                    <TableCell>
-                      <div className="font-medium text-gray-900">{project.name}</div>
-                      <div className="text-sm text-muted-foreground">{project.location}</div>
-                    </TableCell>
-                    <TableCell>{totalCount}</TableCell>
-                    <TableCell>{installedCount}</TableCell>
-                    <TableCell>{completionRate}%</TableCell>
-                    <TableCell>
-                      <Badge className={`${getStatusTone(statusLabel)} text-white`}>
-                        {statusLabel}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {new Date(project.updated_at).toLocaleDateString()}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+      <CardContent className="space-y-6">
+        {groupedByProject.length === 0 ? (
+          <div className="py-10 text-center text-sm text-muted-foreground">
+            No projects available for this report.
+          </div>
+        ) : (
+          groupedByProject.map(({ project, ownerItems, contractorItems }) => (
+            <div key={project.id} className="rounded-lg border border-gray-200 p-4">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-4">
+                <div>
+                  <div className="text-lg font-semibold text-gray-900">{project.name}</div>
+                  <div className="text-sm text-muted-foreground">{project.location}</div>
+                </div>
+                <Badge className="bg-slate-900 text-white w-fit">
+                  Updated {new Date(project.updated_at).toLocaleDateString()}
+                </Badge>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Owner Items</h3>
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Item</TableHead>
+                          <TableHead>Category</TableHead>
+                          <TableHead>Qty</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Company</TableHead>
+                          <TableHead>LPO</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {ownerItems.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={6} className="py-6 text-center text-sm text-muted-foreground">
+                              No owner items for this project.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          ownerItems.map((item) => (
+                            <TableRow key={item.id}>
+                              <TableCell className="font-medium text-gray-900">{item.name}</TableCell>
+                              <TableCell>{item.category}</TableCell>
+                              <TableCell>{item.quantity}</TableCell>
+                              <TableCell>
+                                <Badge className="bg-gray-800 text-white">{item.status}</Badge>
+                              </TableCell>
+                              <TableCell>{item.company || '—'}</TableCell>
+                              <TableCell>{item.lpo_status}</TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Contractor Items</h3>
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Item</TableHead>
+                          <TableHead>Category</TableHead>
+                          <TableHead>Work</TableHead>
+                          <TableHead>Completion</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Company</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {contractorItems.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={6} className="py-6 text-center text-sm text-muted-foreground">
+                              No contractor items for this project.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          contractorItems.map((item) => (
+                            <TableRow key={item.id}>
+                              <TableCell className="font-medium text-gray-900">{item.name}</TableCell>
+                              <TableCell>{item.category}</TableCell>
+                              <TableCell className="max-w-[220px] truncate" title={item.workDescription || ''}>
+                                {item.workDescription || '—'}
+                              </TableCell>
+                              <TableCell>{item.completionPercentage || 0}%</TableCell>
+                              <TableCell>
+                                <Badge className="bg-gray-800 text-white">{item.status}</Badge>
+                              </TableCell>
+                              <TableCell>{item.company || '—'}</TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
       </CardContent>
     </Card>
   );

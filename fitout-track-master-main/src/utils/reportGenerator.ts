@@ -758,3 +758,147 @@ export const generatePdfReport = async (
     }
   })();
 };
+
+export const generateBriefItemsPdf = async (
+  projects: Project[],
+  items: ProjectItem[],
+  title = 'Brief Items Progress Report'
+) => {
+  const wrapper = document.createElement('div');
+  wrapper.style.fontFamily = 'Inter, system-ui, sans-serif';
+  wrapper.style.color = '#0f172a';
+
+  const header = document.createElement('div');
+  header.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div>
+        <h1 style="margin:0;color:#0f172a;font-size:22px;">${title}</h1>
+        <p style="margin:4px 0 0;color:#64748b;font-size:14px;">Generated on ${new Date().toLocaleDateString()}</p>
+      </div>
+      <div style="text-align:right;font-weight:600;color:#0f172a;">
+        <div style="font-size:18px;">FitoutTrack Master</div>
+        <div style="font-size:12px;color:#64748b;">Brief Items Report</div>
+      </div>
+    </div>
+    <hr style="border:none;height:1px;background:#e2e8f0;margin-bottom:16px;" />
+  `;
+  wrapper.appendChild(header);
+
+  const grouped = new Map<string, ProjectItem[]>();
+  items.forEach((item) => {
+    if (!grouped.has(item.project_id)) {
+      grouped.set(item.project_id, []);
+    }
+    grouped.get(item.project_id)?.push(item);
+  });
+
+  projects.forEach((project) => {
+    const projectItems = grouped.get(project.id) || [];
+    const ownerItems = projectItems.filter((item) => item.scope === 'Owner');
+    const contractorItems = projectItems.filter((item) => item.scope === 'Contractor');
+
+    const section = document.createElement('div');
+    section.style.marginBottom = '24px';
+    section.innerHTML = `
+      <div style="padding:14px;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-weight:600;font-size:16px;color:#0f172a;">${project.name}</div>
+            <div style="font-size:13px;color:#64748b;">${project.location}</div>
+          </div>
+          <span style="padding:4px 10px;border-radius:999px;background:#0f172a;color:white;font-size:12px;">
+            Updated ${new Date(project.updated_at).toLocaleDateString()}
+          </span>
+        </div>
+      </div>
+    `;
+
+    const ownerTable = document.createElement('div');
+    ownerTable.innerHTML = `
+      <h3 style="margin:0 0 6px;font-size:13px;color:#475569;">Owner Items</h3>
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;margin-bottom:16px;">
+        <thead>
+          <tr style="background:#f8fafc;text-align:left;font-size:12px;color:#64748b;">
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Item</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Category</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Qty</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Status</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Company</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">LPO</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${
+            ownerItems.length === 0
+              ? `<tr><td colspan="6" style="padding:10px;font-size:12px;color:#94a3b8;">No owner items.</td></tr>`
+              : ownerItems
+                  .map(
+                    (item) => `
+            <tr style="font-size:12px;color:#0f172a;">
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.name}</td>
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.category}</td>
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.quantity}</td>
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.status}</td>
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.company || '—'}</td>
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.lpo_status}</td>
+            </tr>
+          `
+                  )
+                  .join('')
+          }
+        </tbody>
+      </table>
+    `;
+
+    const contractorTable = document.createElement('div');
+    contractorTable.innerHTML = `
+      <h3 style="margin:0 0 6px;font-size:13px;color:#475569;">Contractor Items</h3>
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;">
+        <thead>
+          <tr style="background:#f8fafc;text-align:left;font-size:12px;color:#64748b;">
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Item</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Category</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Work</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Completion</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Status</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Company</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${
+            contractorItems.length === 0
+              ? `<tr><td colspan="6" style="padding:10px;font-size:12px;color:#94a3b8;">No contractor items.</td></tr>`
+              : contractorItems
+                  .map(
+                    (item) => `
+            <tr style="font-size:12px;color:#0f172a;">
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.name}</td>
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.category}</td>
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.workDescription || '—'}</td>
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.completionPercentage || 0}%</td>
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.status}</td>
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.company || '—'}</td>
+            </tr>
+          `
+                  )
+                  .join('')
+          }
+        </tbody>
+      </table>
+    `;
+
+    section.appendChild(ownerTable);
+    section.appendChild(contractorTable);
+    wrapper.appendChild(section);
+  });
+
+  const options = {
+    margin: [10, 10, 14, 10],
+    filename: `brief-items-report-${new Date().toISOString().split('T')[0]}.pdf`,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+  };
+
+  await html2pdf().from(wrapper).set(options).save();
+};

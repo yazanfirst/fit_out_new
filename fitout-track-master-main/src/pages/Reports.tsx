@@ -50,7 +50,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProgressChart from '@/components/Charts/ProgressChart';
 import StatusDistributionChart from '@/components/Charts/StatusDistributionChart';
 import TimelineChart from '@/components/Charts/TimelineChart';
-import { generatePdfReport, ReportConfig } from '@/utils/reportGenerator';
+import { generatePdfReport, generateBriefItemsPdf, ReportConfig } from '@/utils/reportGenerator';
 import ProjectReport from '@/components/Reports/ProjectReport';
 import SnagsReport from '@/components/Reports/SnagsReport';
 import ItemsProgressBrief from '@/components/Reports/ItemsProgressBrief';
@@ -181,6 +181,16 @@ const Reports = () => {
   
   const handleViewProject = (projectId: string) => {
     navigate(`/project/${projectId}`);
+  };
+
+  const handleExportBriefItems = async () => {
+    try {
+      await generateBriefItemsPdf(filteredProjects, itemsByProject, 'Brief Items Progress Report');
+      toast.success('Brief items report generated successfully');
+    } catch (error) {
+      console.error('Error generating brief items report:', error);
+      toast.error('Failed to generate brief items report');
+    }
   };
 
   const handleBackToReports = () => {
@@ -503,7 +513,11 @@ const Reports = () => {
                 </TabsContent>
 
                 <TabsContent value="items-brief" className="p-0 m-0">
-                  <ItemsProgressBrief projects={filteredProjects} items={itemsByProject} />
+                  <ItemsProgressBrief
+                    projects={filteredProjects}
+                    items={itemsByProject}
+                    onExport={handleExportBriefItems}
+                  />
                 </TabsContent>
 
                 <TabsContent value="snags" className="p-0 m-0">
