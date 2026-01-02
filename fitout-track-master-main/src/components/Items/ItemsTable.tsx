@@ -93,6 +93,7 @@ const ItemsTable: React.FC<ItemsTableProps> = ({ projectId }) => {
   const [isCustomCategory, setIsCustomCategory] = useState<boolean>(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadTemplate, setUploadTemplate] = useState<ProjectScope>('Owner');
   
   const { data: rawItems = [], isLoading } = useQuery({
     queryKey: ['projectItems', projectId],
@@ -425,7 +426,7 @@ const ItemsTable: React.FC<ItemsTableProps> = ({ projectId }) => {
             company,
             lpo_status: normalizeLpoStatus(lpoValue),
             notes,
-            scope: normalizeScope(scopeValue),
+            scope: scopeValue ? normalizeScope(scopeValue) : uploadTemplate,
             completionPercentage: parseInt(String(completionValue), 10) || 0,
             workDescription,
           };
@@ -931,6 +932,24 @@ const ItemsTable: React.FC<ItemsTableProps> = ({ projectId }) => {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Template Scope</Label>
+              <Select
+                value={uploadTemplate}
+                onValueChange={(value) => setUploadTemplate(value as ProjectScope)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select template scope" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Owner">Owner Template</SelectItem>
+                  <SelectItem value="Contractor">Contractor Template</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                If the Excel file does not include a scope column, this selection will be used.
+              </p>
+            </div>
             <div className="rounded-md border p-3 text-sm text-muted-foreground">
               <p className="font-medium text-gray-700 mb-2">Supported columns</p>
               <ul className="list-disc list-inside space-y-1">
