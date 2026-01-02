@@ -530,7 +530,10 @@ const ItemsTable: React.FC<ItemsTableProps> = ({ projectId }) => {
             <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-end w-full sm:w-auto">
               <Button
                 variant="outline"
-                onClick={() => setIsUploadModalOpen(true)}
+                onClick={() => {
+                  setUploadTemplate(activeTab);
+                  setIsUploadModalOpen(true);
+                }}
               >
                 <Upload className="h-4 w-4 mr-2" />
                 Upload Excel
@@ -549,10 +552,20 @@ const ItemsTable: React.FC<ItemsTableProps> = ({ projectId }) => {
       
       <CardContent>
         <Tabs defaultValue="Owner" value={activeTab} onValueChange={(value) => setActiveTab(value as ProjectScope)}>
-          <TabsList className="mb-4">
-            <TabsTrigger value="Owner">Owner Scope</TabsTrigger>
-            <TabsTrigger value="Contractor">Contractor Scope</TabsTrigger>
-          </TabsList>
+        <TabsList className="mb-4">
+          <TabsTrigger
+            value="Owner"
+            onClick={() => setUploadTemplate('Owner')}
+          >
+            Owner Scope
+          </TabsTrigger>
+          <TabsTrigger
+            value="Contractor"
+            onClick={() => setUploadTemplate('Contractor')}
+          >
+            Contractor Scope
+          </TabsTrigger>
+        </TabsList>
           
           <TabsContent value="Owner" className="mt-0">
             <div className="rounded-md border">
