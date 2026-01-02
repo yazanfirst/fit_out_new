@@ -63,6 +63,7 @@ export interface ProjectItem {
   lpo_status: LPOStatus;
   notes: string;
   scope: ProjectScope;
+  order_index?: number;
   // These properties map to snake_case DB fields:
   completionPercentage?: number;  // Maps to completion_percentage in database
   workDescription?: string;       // Maps to work_description in database

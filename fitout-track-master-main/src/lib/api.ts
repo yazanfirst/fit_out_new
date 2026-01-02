@@ -190,6 +190,7 @@ export async function getItemsByProjectId(projectId: string): Promise<ProjectIte
       .from('project_items')
       .select('*')
       .eq('project_id', projectId)
+      .order('order_index', { ascending: true, nullsFirst: true })
       .order('created_at');
 
     if (error) {
@@ -220,6 +221,7 @@ export async function getItemsByProjectIds(projectIds: string[]): Promise<Projec
       .from('project_items')
       .select('*')
       .in('project_id', projectIds)
+      .order('order_index', { ascending: true, nullsFirst: true })
       .order('created_at');
 
     if (error) {
@@ -242,9 +244,28 @@ export async function getItemsByProjectIds(projectIds: string[]): Promise<Projec
 
 export async function createItem(item: Omit<ProjectItem, 'id' | 'created_at' | 'updated_at'>): Promise<ProjectItem | null> {
   try {
+    let orderIndex = item.order_index ?? null;
+    if (orderIndex === null || orderIndex === undefined) {
+      const { data: orderData, error: orderError } = await supabase
+        .from('project_items')
+        .select('order_index')
+        .eq('project_id', item.project_id)
+        .eq('scope', item.scope)
+        .order('order_index', { ascending: false })
+        .limit(1);
+
+      if (orderError) {
+        console.error("Error fetching item order index:", orderError);
+      }
+
+      const lastOrderIndex = orderData?.[0]?.order_index ?? -1;
+      orderIndex = lastOrderIndex + 1;
+    }
+
     // Transform client-side property names to database column names
     const dbItem = {
       ...item,
+      order_index: orderIndex,
       completion_percentage: item.completionPercentage,
       work_description: item.workDescription
     };

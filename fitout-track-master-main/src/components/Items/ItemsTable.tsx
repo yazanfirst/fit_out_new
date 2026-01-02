@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Edit, Trash2, Plus, Filter, Upload } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { DragDropContext, Draggable, Droppable, DropResult } from '@hello-pangea/dnd';
+import { Edit, Trash2, Plus, Filter, Upload, GripVertical } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,6 +106,17 @@ const ItemsTable: React.FC<ItemsTableProps> = ({ projectId }) => {
     completionPercentage: item.completionPercentage || 0,
     workDescription: item.workDescription || ''
   }));
+
+  const orderedItems = useMemo(() => {
+    return [...items].sort((a, b) => {
+      const orderA = a.order_index ?? 0;
+      const orderB = b.order_index ?? 0;
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+      return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+    });
+  }, [items]);
   
   const { hasPermission } = useAuth();
   
@@ -207,13 +219,44 @@ const ItemsTable: React.FC<ItemsTableProps> = ({ projectId }) => {
     ...items.map(item => item.category)
   ])).filter(Boolean);
   
-  const filteredItems = items.filter(item => {
+  const filteredItems = orderedItems.filter(item => {
     return (
       item.scope === activeTab &&
       (categoryFilter === 'all' || item.category === categoryFilter) &&
       (statusFilter === 'all' || item.status === statusFilter)
     );
   });
+
+  const updateOrderMutation = useMutation({
+    mutationFn: ({ id, order_index }: { id: string; order_index: number }) => updateItem(id, { order_index }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projectItems'] });
+    },
+    onError: (error: Error) => {
+      console.error('Error updating item order:', error);
+      toast.error('Failed to update item order');
+    }
+  });
+
+  const handleDragEnd = (result: DropResult, scope: ProjectScope) => {
+    if (!result.destination) return;
+    if (categoryFilter !== 'all' || statusFilter !== 'all') {
+      toast.error('Clear filters before reordering items.');
+      return;
+    }
+    const itemsInScope = orderedItems.filter(item => item.scope === scope);
+    const [moved] = itemsInScope.splice(result.source.index, 1);
+    itemsInScope.splice(result.destination.index, 0, moved);
+
+    const updates = itemsInScope.map((item, index) => ({
+      id: item.id,
+      order_index: index
+    }));
+
+    updates.forEach(update => {
+      updateOrderMutation.mutate(update);
+    });
+  };
   
   const handleOpenModal = (item?: ProjectItem) => {
     if (item) {
@@ -569,146 +612,192 @@ const ItemsTable: React.FC<ItemsTableProps> = ({ projectId }) => {
           
           <TabsContent value="Owner" className="mt-0">
             <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Item Name</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead className="text-center">Qty</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Company</TableHead>
-                    <TableHead>LPO Status</TableHead>
-                    <TableHead>Notes</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredItems.length === 0 ? (
+              <DragDropContext onDragEnd={(result) => handleDragEnd(result, 'Owner')}>
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={8} className="h-24 text-center">
-                        No items found. Add your first item.
-                      </TableCell>
+                      <TableHead />
+                      <TableHead>Item Name</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead className="text-center">Qty</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Company</TableHead>
+                      <TableHead>LPO Status</TableHead>
+                      <TableHead>Notes</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ) : (
-                    filteredItems.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-medium">{item.name}</TableCell>
-                        <TableCell>{item.category}</TableCell>
-                        <TableCell className="text-center">{item.quantity}</TableCell>
-                        <TableCell>
-                          <Badge className={`${getStatusColor(item.status)} text-white`}>
-                            {item.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{item.company}</TableCell>
-                        <TableCell>
-                          <Badge className={`${getLPOStatusColor(item.lpo_status)} text-white`}>
-                            {item.lpo_status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="max-w-[150px] truncate" title={item.notes}>
-                          {item.notes || "-"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end items-center space-x-2">
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              onClick={() => handleOpenModal(item)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            {hasPermission('delete', 'items') ? (
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={() => handleDeleteItem(item.id)}
-                                className="h-8 w-8 p-0"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            ) : null}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <Droppable droppableId="owner-items">
+                    {(provided) => (
+                      <TableBody ref={provided.innerRef} {...provided.droppableProps}>
+                        {filteredItems.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={9} className="h-24 text-center">
+                              No items found. Add your first item.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          filteredItems.map((item, index) => (
+                            <Draggable key={item.id} draggableId={item.id} index={index}>
+                              {(draggableProvided) => (
+                                <TableRow
+                                  ref={draggableProvided.innerRef}
+                                  {...draggableProvided.draggableProps}
+                                >
+                                  <TableCell className="w-8">
+                                    <span
+                                      {...draggableProvided.dragHandleProps}
+                                      className="flex items-center text-muted-foreground"
+                                    >
+                                      <GripVertical className="h-4 w-4" />
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="font-medium">{item.name}</TableCell>
+                                  <TableCell>{item.category}</TableCell>
+                                  <TableCell className="text-center">{item.quantity}</TableCell>
+                                  <TableCell>
+                                    <Badge className={`${getStatusColor(item.status)} text-white`}>
+                                      {item.status}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell>{item.company}</TableCell>
+                                  <TableCell>
+                                    <Badge className={`${getLPOStatusColor(item.lpo_status)} text-white`}>
+                                      {item.lpo_status}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="max-w-[150px] truncate" title={item.notes}>
+                                    {item.notes || "-"}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <div className="flex justify-end items-center space-x-2">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon"
+                                        onClick={() => handleOpenModal(item)}
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                      {hasPermission('delete', 'items') ? (
+                                        <Button 
+                                          variant="outline" 
+                                          size="sm" 
+                                          onClick={() => handleDeleteItem(item.id)}
+                                          className="h-8 w-8 p-0"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      ) : null}
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </Draggable>
+                          ))
+                        )}
+                        {provided.placeholder}
+                      </TableBody>
+                    )}
+                  </Droppable>
+                </Table>
+              </DragDropContext>
             </div>
           </TabsContent>
           
           <TabsContent value="Contractor" className="mt-0">
             <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Item Name</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Work Description</TableHead>
-                    <TableHead className="text-center">Completion</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Company</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredItems.length === 0 ? (
+              <DragDropContext onDragEnd={(result) => handleDragEnd(result, 'Contractor')}>
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={7} className="h-24 text-center">
-                        No contractor items found. Add your first item.
-                      </TableCell>
+                      <TableHead />
+                      <TableHead>Item Name</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Work Description</TableHead>
+                      <TableHead className="text-center">Completion</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Company</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ) : (
-                    filteredItems.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-medium">{item.name}</TableCell>
-                        <TableCell>{item.category}</TableCell>
-                        <TableCell className="max-w-[200px]">
-                          <div className="truncate" title={item.workDescription || 'No description provided'}>
-                            {item.workDescription || 'No description provided'}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col space-y-1">
-                            <div className="text-xs text-right mb-1">
-                              {item.completionPercentage || 0}%
-                            </div>
-                            <Progress value={item.completionPercentage || 0} />
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={`${getStatusColor(item.status)} text-white`}>
-                            {item.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{item.company}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end items-center space-x-2">
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              onClick={() => handleOpenModal(item)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            {hasPermission('delete', 'items') ? (
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={() => handleDeleteItem(item.id)}
-                                className="h-8 w-8 p-0"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            ) : null}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <Droppable droppableId="contractor-items">
+                    {(provided) => (
+                      <TableBody ref={provided.innerRef} {...provided.droppableProps}>
+                        {filteredItems.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={8} className="h-24 text-center">
+                              No contractor items found. Add your first item.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          filteredItems.map((item, index) => (
+                            <Draggable key={item.id} draggableId={item.id} index={index}>
+                              {(draggableProvided) => (
+                                <TableRow
+                                  ref={draggableProvided.innerRef}
+                                  {...draggableProvided.draggableProps}
+                                >
+                                  <TableCell className="w-8">
+                                    <span
+                                      {...draggableProvided.dragHandleProps}
+                                      className="flex items-center text-muted-foreground"
+                                    >
+                                      <GripVertical className="h-4 w-4" />
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="font-medium">{item.name}</TableCell>
+                                  <TableCell>{item.category}</TableCell>
+                                  <TableCell className="max-w-[200px]">
+                                    <div className="truncate" title={item.workDescription || 'No description provided'}>
+                                      {item.workDescription || 'No description provided'}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex flex-col space-y-1">
+                                      <div className="text-xs text-right mb-1">
+                                        {item.completionPercentage || 0}%
+                                      </div>
+                                      <Progress value={item.completionPercentage || 0} />
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge className={`${getStatusColor(item.status)} text-white`}>
+                                      {item.status}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell>{item.company}</TableCell>
+                                  <TableCell className="text-right">
+                                    <div className="flex justify-end items-center space-x-2">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon"
+                                        onClick={() => handleOpenModal(item)}
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                      {hasPermission('delete', 'items') ? (
+                                        <Button 
+                                          variant="outline" 
+                                          size="sm" 
+                                          onClick={() => handleDeleteItem(item.id)}
+                                          className="h-8 w-8 p-0"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      ) : null}
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </Draggable>
+                          ))
+                        )}
+                        {provided.placeholder}
+                      </TableBody>
+                    )}
+                  </Droppable>
+                </Table>
+              </DragDropContext>
             </div>
           </TabsContent>
         </Tabs>
