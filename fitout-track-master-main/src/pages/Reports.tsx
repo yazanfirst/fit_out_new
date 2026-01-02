@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { 
   Download, 
   FileText, 
@@ -41,7 +41,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import Navbar from '@/components/Navbar';
 import { Project, ProjectStatus, Drawing } from '@/lib/types';
-import { getProjects, getTimelineByProjectId, getItemsByProjectId, getDrawingsByProjectId } from '@/lib/api';
+import { getProjects, getTimelineByProjectId, getItemsByProjectId, getDrawingsByProjectId, getSnagsByProjectIds } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Progress } from '@/components/ui/progress';
@@ -52,6 +52,7 @@ import StatusDistributionChart from '@/components/Charts/StatusDistributionChart
 import TimelineChart from '@/components/Charts/TimelineChart';
 import { generatePdfReport, ReportConfig } from '@/utils/reportGenerator';
 import ProjectReport from '@/components/Reports/ProjectReport';
+import SnagsReport from '@/components/Reports/SnagsReport';
 
 const Reports = () => {
   const navigate = useNavigate();
@@ -112,6 +113,14 @@ const Reports = () => {
   const selectedProject = selectedProjectId 
     ? projects.find(p => p.id === selectedProjectId) 
     : null;
+
+  const filteredProjectIds = useMemo(() => filteredProjects.map(project => project.id), [filteredProjects]);
+
+  const { data: snags = [] } = useQuery({
+    queryKey: ['snags', filteredProjectIds],
+    queryFn: () => getSnagsByProjectIds(filteredProjectIds),
+    enabled: filteredProjectIds.length > 0
+  });
   
   // Status color mapping
   const getStatusColor = (status: ProjectStatus) => {
@@ -316,6 +325,7 @@ const Reports = () => {
                     <TabsList>
                       <TabsTrigger value="table">Table View</TabsTrigger>
                       <TabsTrigger value="charts">Charts</TabsTrigger>
+                      <TabsTrigger value="snags">Snags</TabsTrigger>
                     </TabsList>
                   </Tabs>
                 </div>
@@ -482,6 +492,14 @@ const Reports = () => {
                       />
                     </div>
                   </div>
+                </TabsContent>
+
+                <TabsContent value="snags" className="p-0 m-0">
+                  <SnagsReport
+                    snags={snags}
+                    projects={filteredProjects}
+                    onViewProject={handleViewProject}
+                  />
                 </TabsContent>
               </Tabs>
               

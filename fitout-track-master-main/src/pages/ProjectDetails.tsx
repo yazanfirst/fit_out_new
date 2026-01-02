@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Calendar, FileText, CreditCard, Clock, AlertTriangle, Kanban } from 'lucide-react';
+import { ArrowLeft, Edit, Calendar, FileText, CreditCard, Clock, AlertTriangle, Kanban, ClipboardList } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,7 +22,7 @@ import ItemsTable from '@/components/Items/ItemsTable';
 import DrawingsGrid from '@/components/Drawings/DrawingsGrid';
 import InvoiceTable from '@/components/Invoices/InvoiceTable';
 import TimelineView from '@/components/Timeline/TimelineView';
-import { getProjectById, getItemsByProjectId, getDrawingsByProjectId, getInvoicesByProjectId, getTimelineByProjectId, updateProject } from '@/lib/api';
+import { getProjectById, getItemsByProjectId, getDrawingsByProjectId, getInvoicesByProjectId, getTimelineByProjectId, getSnagsByProjectId, updateProject } from '@/lib/api';
 import { calculateProjectProgress } from '@/lib/progressCalculation';
 import { toast } from 'sonner';
 import {
@@ -47,6 +47,7 @@ import { Project, ProjectStatus } from '@/lib/types';
 import ProjectUsers from '@/components/ProjectUsers';
 import { useAuth } from '@/contexts/AuthContext';
 import KanbanBoard from '@/components/Kanban/KanbanBoard';
+import SnagsTable from '@/components/Snags/SnagsTable';
 
 const ProjectDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -118,6 +119,12 @@ const ProjectDetails = () => {
   const { data: milestones = [] } = useQuery({
     queryKey: ['projectTimeline', id],
     queryFn: () => getTimelineByProjectId(id || ''),
+    enabled: !!id
+  });
+
+  const { data: snags = [] } = useQuery({
+    queryKey: ['projectSnags', id],
+    queryFn: () => getSnagsByProjectId(id || ''),
     enabled: !!id
   });
   
@@ -260,6 +267,7 @@ const ProjectDetails = () => {
   const delayedMilestones = milestones.filter(m => 
     m.status === 'Delayed' || (new Date(m.planned_date) < new Date() && m.status !== 'Completed')
   ).length;
+  const openSnags = snags.filter(snag => snag.status === 'Open').length;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -315,7 +323,7 @@ const ProjectDetails = () => {
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium">Progress</CardTitle>
@@ -396,6 +404,23 @@ const ProjectDetails = () => {
                 </div>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Snags</CardTitle>
+              </CardHeader>
+              <CardContent className="flex items-center">
+                <div className="mr-3 bg-rose-100 p-2 rounded-full">
+                  <ClipboardList className="h-5 w-5 text-rose-600" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold">{snags.length}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {openSnags} opening snag{openSnags === 1 ? '' : 's'}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
@@ -472,7 +497,7 @@ const ProjectDetails = () => {
           </div>
           
           <Tabs value={activeTab} onValueChange={handleTabChange} className="mt-6">
-            <TabsList className="w-full md:w-auto grid grid-cols-2 md:grid-cols-5 mb-4">
+            <TabsList className="w-full md:w-auto grid grid-cols-2 md:grid-cols-6 mb-4">
               <TabsTrigger value="items" className="flex items-center">
                 <FileText className="h-4 w-4 mr-2" />
                 Items & Orders
@@ -492,6 +517,10 @@ const ProjectDetails = () => {
               <TabsTrigger value="kanban" className="flex items-center">
                 <Kanban className="h-4 w-4 mr-2" />
                 Kanban
+              </TabsTrigger>
+              <TabsTrigger value="snags" className="flex items-center">
+                <ClipboardList className="h-4 w-4 mr-2" />
+                Snags
               </TabsTrigger>
             </TabsList>
             
@@ -526,6 +555,10 @@ const ProjectDetails = () => {
             
             <TabsContent value="kanban" className="mt-4">
               <KanbanBoard projectId={project.id} />
+            </TabsContent>
+
+            <TabsContent value="snags" className="mt-4">
+              <SnagsTable projectId={project.id} />
             </TabsContent>
           </Tabs>
           

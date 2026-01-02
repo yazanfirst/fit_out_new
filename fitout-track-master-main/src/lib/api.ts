@@ -1,4 +1,4 @@
-import { Project, ProjectStatus, TimelineMilestone, Drawing, ItemCategory, ProjectItem, Invoice, InvoiceStatus, Task } from './types';
+import { Project, ProjectStatus, TimelineMilestone, Drawing, ItemCategory, ProjectItem, Invoice, InvoiceStatus, Task, Snag } from './types';
 import { supabase, STORAGE_BUCKETS, sanitizeUuid, validateId, sanitizeString } from '@/integrations/supabase/client';
 import { getPublicStorageUrl } from './storage';
 import { createAuditLog, getCurrentUser } from './auth';
@@ -303,6 +303,110 @@ export async function deleteItem(id: string): Promise<boolean> {
     return true;
   } catch (error) {
     console.error("Error in deleteItem:", error);
+    return false;
+  }
+}
+
+export async function getSnagsByProjectId(projectId: string): Promise<Snag[]> {
+  try {
+    const { data, error } = await supabase
+      .from('snags')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error("Error fetching snags:", error);
+      throw error;
+    }
+
+    return (data || []) as Snag[];
+  } catch (error) {
+    console.error("Unexpected error fetching snags:", error);
+    return [];
+  }
+}
+
+export async function getSnagsByProjectIds(projectIds: string[]): Promise<Snag[]> {
+  if (projectIds.length === 0) {
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('snags')
+      .select('*')
+      .in('project_id', projectIds)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error("Error fetching snags:", error);
+      throw error;
+    }
+
+    return (data || []) as Snag[];
+  } catch (error) {
+    console.error("Unexpected error fetching snags by project IDs:", error);
+    return [];
+  }
+}
+
+export async function createSnag(snag: Omit<Snag, 'id' | 'created_at' | 'updated_at'>): Promise<Snag | null> {
+  try {
+    const { data, error } = await supabase
+      .from('snags')
+      .insert([snag])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error creating snag:", error);
+      throw error;
+    }
+
+    return data as Snag;
+  } catch (error) {
+    console.error("Error in createSnag:", error);
+    throw error;
+  }
+}
+
+export async function updateSnag(id: string, updates: Partial<Snag>): Promise<Snag | null> {
+  try {
+    const { data, error } = await supabase
+      .from('snags')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error updating snag:", error);
+      throw error;
+    }
+
+    return data as Snag;
+  } catch (error) {
+    console.error("Error in updateSnag:", error);
+    throw error;
+  }
+}
+
+export async function deleteSnag(id: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('snags')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error("Error deleting snag:", error);
+      throw error;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error in deleteSnag:", error);
     return false;
   }
 }
