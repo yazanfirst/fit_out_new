@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Search, SlidersHorizontal, X, PlusCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock3, ListChecks, PlusCircle, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -61,6 +62,10 @@ const Dashboard = () => {
   };
   
   const hasActiveFilters = searchTerm || statusFilter !== 'all' || chainFilter !== 'all';
+  const totalProjects = projects.length;
+  const inProgressCount = projects.filter((project: Project) => project.status === 'In Progress').length;
+  const completedCount = projects.filter((project: Project) => project.status === 'Completed').length;
+  const delayedCount = projects.filter((project: Project) => project.status === 'Delayed').length;
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -68,18 +73,78 @@ const Dashboard = () => {
       
       <main className="flex-1">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="mb-8 flex flex-wrap justify-between items-center">
+          <div className="mb-8 flex flex-wrap justify-between items-start gap-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Project Dashboard</h1>
-              <p className="text-gray-600 mt-1">Manage your restaurant fitout projects</p>
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Portfolio Overview</span>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mt-2">Project Dashboard</h1>
+              <p className="text-gray-600 mt-1">Monitor, prioritize, and deliver every restaurant fitout with confidence.</p>
+              <div className="mt-3 flex items-center gap-2 text-sm text-gray-500">
+                <ListChecks className="h-4 w-4" />
+                <span>Showing {filteredProjects.length} of {totalProjects} projects</span>
+              </div>
             </div>
             <Button 
               onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center gap-2 mt-4 sm:mt-0"
+              className="flex items-center gap-2 mt-2 sm:mt-0"
             >
               <PlusCircle className="h-4 w-4" />
               <span>Add Project</span>
             </Button>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+            <Card className="border-none shadow-sm">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">Total Projects</p>
+                    <p className="text-2xl font-semibold text-gray-900 mt-1">{totalProjects}</p>
+                  </div>
+                  <div className="h-10 w-10 rounded-full bg-blue-50 flex items-center justify-center">
+                    <ListChecks className="h-5 w-5 text-blue-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-none shadow-sm">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">In Progress</p>
+                    <p className="text-2xl font-semibold text-gray-900 mt-1">{inProgressCount}</p>
+                  </div>
+                  <div className="h-10 w-10 rounded-full bg-indigo-50 flex items-center justify-center">
+                    <Clock3 className="h-5 w-5 text-indigo-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-none shadow-sm">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">Completed</p>
+                    <p className="text-2xl font-semibold text-gray-900 mt-1">{completedCount}</p>
+                  </div>
+                  <div className="h-10 w-10 rounded-full bg-emerald-50 flex items-center justify-center">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-none shadow-sm">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">Delayed</p>
+                    <p className="text-2xl font-semibold text-gray-900 mt-1">{delayedCount}</p>
+                  </div>
+                  <div className="h-10 w-10 rounded-full bg-rose-50 flex items-center justify-center">
+                    <AlertTriangle className="h-5 w-5 text-rose-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
           
           <div className="mb-6 flex flex-col sm:flex-row gap-4">
