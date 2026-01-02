@@ -22,9 +22,15 @@ interface ItemsProgressBriefProps {
   projects: Project[];
   items: ProjectItem[];
   onExport?: () => void;
+  onExportProject?: (projectId: string) => void;
 }
 
-const ItemsProgressBrief: React.FC<ItemsProgressBriefProps> = ({ projects, items, onExport }) => {
+const ItemsProgressBrief: React.FC<ItemsProgressBriefProps> = ({
+  projects,
+  items,
+  onExport,
+  onExportProject,
+}) => {
   const groupedByProject = useMemo(() => {
     const grouped = new Map<string, ProjectItem[]>();
     items.forEach((item) => {
@@ -71,9 +77,21 @@ const ItemsProgressBrief: React.FC<ItemsProgressBriefProps> = ({ projects, items
                   <div className="text-lg font-semibold text-gray-900">{project.name}</div>
                   <div className="text-sm text-muted-foreground">{project.location}</div>
                 </div>
-                <Badge className="bg-slate-900 text-white w-fit">
-                  Updated {new Date(project.updated_at).toLocaleDateString()}
-                </Badge>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className="bg-slate-900 text-white w-fit">
+                    Updated {new Date(project.updated_at).toLocaleDateString()}
+                  </Badge>
+                  {onExportProject ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onExportProject(project.id)}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Export Project PDF
+                    </Button>
+                  ) : null}
+                </div>
               </div>
 
               <div className="space-y-6">

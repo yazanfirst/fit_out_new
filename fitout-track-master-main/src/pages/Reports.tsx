@@ -193,6 +193,30 @@ const Reports = () => {
     }
   };
 
+  const handleExportProjectBriefItems = async (projectId: string) => {
+    const project = filteredProjects.find((item) => item.id === projectId);
+    if (!project) {
+      toast.error('Project not found for export');
+      return;
+    }
+
+    try {
+      let projectPhotos: Drawing[] = [];
+      try {
+        projectPhotos = await getDrawingsByProjectId(projectId);
+        projectPhotos = projectPhotos.filter((item) => item.type === 'Photo').slice(0, 5);
+      } catch (error) {
+        console.error('Error fetching project photos:', error);
+      }
+
+      await generateBriefItemsPdf([project], itemsByProject, `${project.name} - Brief Items Report`, projectPhotos);
+      toast.success('Project brief items report generated successfully');
+    } catch (error) {
+      console.error('Error generating project brief items report:', error);
+      toast.error('Failed to generate project brief items report');
+    }
+  };
+
   const handleBackToReports = () => {
     setSelectedProjectId(null);
     setActiveTab('table');
@@ -517,6 +541,7 @@ const Reports = () => {
                     projects={filteredProjects}
                     items={itemsByProject}
                     onExport={handleExportBriefItems}
+                    onExportProject={handleExportProjectBriefItems}
                   />
                 </TabsContent>
 

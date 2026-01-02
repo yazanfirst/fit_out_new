@@ -762,7 +762,8 @@ export const generatePdfReport = async (
 export const generateBriefItemsPdf = async (
   projects: Project[],
   items: ProjectItem[],
-  title = 'Brief Items Progress Report'
+  title = 'Brief Items Progress Report',
+  photos: Drawing[] = []
 ) => {
   const wrapper = document.createElement('div');
   wrapper.style.fontFamily = 'Inter, system-ui, sans-serif';
@@ -792,10 +793,33 @@ export const generateBriefItemsPdf = async (
     grouped.get(item.project_id)?.push(item);
   });
 
-  projects.forEach((project) => {
+  for (const project of projects) {
     const projectItems = grouped.get(project.id) || [];
     const ownerItems = projectItems.filter((item) => item.scope === 'Owner');
     const contractorItems = projectItems.filter((item) => item.scope === 'Contractor');
+
+    const ownerStatusCounts = ownerItems.reduce<Record<string, number>>((acc, item) => {
+      acc[item.status] = (acc[item.status] || 0) + 1;
+      return acc;
+    }, {});
+
+    const contractorStatusCounts = contractorItems.reduce<Record<string, number>>((acc, item) => {
+      acc[item.status] = (acc[item.status] || 0) + 1;
+      return acc;
+    }, {});
+
+    const statusRow = (status: string, count: number, total: number) => {
+      const percent = total > 0 ? Math.round((count / total) * 100) : 0;
+      return `
+        <div style="display:flex;align-items:center;margin-bottom:6px;">
+          <div style="width:110px;font-size:12px;color:#475569;">${status}</div>
+          <div style="flex:1;background:#e2e8f0;border-radius:999px;overflow:hidden;height:10px;margin-right:8px;">
+            <div style="width:${percent}%;background:#2563eb;height:10px;border-radius:999px;"></div>
+          </div>
+          <div style="font-size:12px;color:#0f172a;">${count} (${percent}%)</div>
+        </div>
+      `;
+    };
 
     const section = document.createElement('div');
     section.style.marginBottom = '24px';
@@ -812,6 +836,58 @@ export const generateBriefItemsPdf = async (
         </div>
       </div>
     `;
+
+    const chartSection = document.createElement('div');
+    chartSection.style.marginBottom = '16px';
+    chartSection.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px;">
+        <div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;">
+          <h3 style="margin:0 0 8px;font-size:13px;color:#475569;">Owner Items Status</h3>
+          ${
+            Object.keys(ownerStatusCounts).length === 0
+              ? `<div style="font-size:12px;color:#94a3b8;">No owner items.</div>`
+              : Object.entries(ownerStatusCounts)
+                  .map(([status, count]) => statusRow(status, count, ownerItems.length))
+                  .join('')
+          }
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;">
+          <h3 style="margin:0 0 8px;font-size:13px;color:#475569;">Contractor Items Status</h3>
+          ${
+            Object.keys(contractorStatusCounts).length === 0
+              ? `<div style="font-size:12px;color:#94a3b8;">No contractor items.</div>`
+              : Object.entries(contractorStatusCounts)
+                  .map(([status, count]) => statusRow(status, count, contractorItems.length))
+                  .join('')
+          }
+        </div>
+      </div>
+    `;
+
+    const projectPhotos = photos.filter((photo) => photo.project_id === project.id).slice(0, 5);
+    const photosSection = document.createElement('div');
+    photosSection.style.marginBottom = '16px';
+    if (projectPhotos.length > 0) {
+      const photoHtml = [];
+      for (const photo of projectPhotos) {
+        const imageUrl = await getStorageUrl('project-photos', photo.storage_path);
+        const dataUrl = await loadImageAsDataUrl(imageUrl);
+        if (!dataUrl) continue;
+        photoHtml.push(`
+          <div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+            <img src="${dataUrl}" style="width:100%;height:120px;object-fit:cover;" />
+            <div style="padding:6px 8px;font-size:11px;color:#475569;">${photo.name}</div>
+          </div>
+        `);
+      }
+
+      photosSection.innerHTML = `
+        <h3 style="margin:0 0 8px;font-size:13px;color:#475569;">Latest Progress Photos</h3>
+        <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:10px;">
+          ${photoHtml.join('')}
+        </div>
+      `;
+    }
 
     const ownerTable = document.createElement('div');
     ownerTable.innerHTML = `
@@ -887,10 +963,14 @@ export const generateBriefItemsPdf = async (
       </table>
     `;
 
+    section.appendChild(chartSection);
+    if (projectPhotos.length > 0) {
+      section.appendChild(photosSection);
+    }
     section.appendChild(ownerTable);
     section.appendChild(contractorTable);
     wrapper.appendChild(section);
-  });
+  }
 
   const options = {
     margin: [10, 10, 14, 10],
