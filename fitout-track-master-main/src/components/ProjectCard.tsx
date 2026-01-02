@@ -2,7 +2,7 @@ import React from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Link } from 'react-router-dom';
 import { type Project } from '@/lib/types';
-import { Trash2 } from 'lucide-react';
+import { CalendarClock, MapPin, Trash2, UserRound } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,9 +15,6 @@ interface ProjectCardProps {
 
 const ProjectCard: React.FC<ProjectCardProps> = ({ project }) => {
   const { removeItem } = useProjectStore();
-  
-  // Enhanced logging to track the progress value flow
-  console.log(`Rendering ProjectCard for project: ${project.name}, ID: ${project.id}, status: ${project.status}, raw progress: ${project.progress}, type: ${typeof project.progress}`);
   
   // Calculate the status color
   const getStatusColor = () => {
@@ -52,8 +49,6 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project }) => {
     }
   }
 
-  console.log(`ProjectCard: Final normalized progress: ${normalizedProgress} (from raw: ${project.progress})`);
-
   // Delete project function
   const handleDelete = async (e: React.MouseEvent) => {
     e.preventDefault(); // Prevent navigating to project details
@@ -85,43 +80,50 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project }) => {
 
   return (
     <Link to={`/project/${project.id}`} className="block">
-      <div className="group flex flex-col h-full overflow-hidden bg-white border rounded-lg shadow-sm transition hover:shadow-md">
+      <div className="group flex flex-col h-full overflow-hidden bg-white border rounded-xl shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
         <div className="p-5 flex-1">
-          <div className="flex justify-between items-start">
-            <Badge 
-              className={`${getStatusColor()} text-white`} 
+          <div className="flex justify-between items-start gap-4">
+            <Badge
+              className={`${getStatusColor()} text-white gap-2 px-3 py-1 rounded-full shadow-sm`}
               variant="secondary"
             >
+              <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
               {project.status}
             </Badge>
-            <div className={`text-sm font-medium ${project.chain === 'BK' ? 'text-orange-600' : 'text-red-600'}`}>
+            <div className={`text-sm font-semibold ${project.chain === 'BK' ? 'text-orange-600' : 'text-red-600'}`}>
               {project.chain === 'BK' ? 'Burger King' : 'Texas Chicken'}
             </div>
           </div>
           
-          <h3 className="text-lg font-medium mt-3">{project.name}</h3>
+          <h3 className="text-lg font-semibold mt-4 text-gray-900">{project.name}</h3>
           
-          <div className="mt-2 text-sm text-gray-600">
-            <div className="truncate">{project.location || 'Location not specified'}</div>
-            <div className="truncate mt-1">
-              <span className="text-gray-500">Contractor:</span> {project.main_contractor || 'Not assigned'}
+          <div className="mt-3 space-y-2 text-sm text-gray-600">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-gray-400" />
+              <span className="truncate">{project.location || 'Location not specified'}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <UserRound className="h-4 w-4 text-gray-400" />
+              <span className="truncate">
+                <span className="text-gray-500">Contractor:</span> {project.main_contractor || 'Not assigned'}
+              </span>
             </div>
           </div>
           
-          <div className="mt-4">
-            <div className="flex justify-between text-sm mb-1">
+          <div className="mt-5">
+            <div className="flex justify-between text-xs uppercase tracking-wide text-gray-500 mb-2">
               <span>Progress</span>
-              <span className="font-medium">{normalizedProgress}%</span>
+              <span className="font-semibold text-gray-700">{normalizedProgress}%</span>
             </div>
-            <Progress 
-              value={normalizedProgress} 
-              className={`h-2 ${getProgressColor(normalizedProgress)}`}
+            <Progress
+              value={normalizedProgress}
+              className="h-2"
+              indicatorClassName={getProgressColor(normalizedProgress)}
             />
           </div>
           
-          {/* Delete Button */}
-          <div className="mt-4">
-            <Button 
+          <div className="mt-5">
+            <Button
               variant="destructive"
               size="sm"
               className="w-full opacity-0 group-hover:opacity-100 transition-opacity"
@@ -132,7 +134,8 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project }) => {
           </div>
         </div>
         
-        <div className="bg-gray-50 px-5 py-3 text-xs text-gray-500 border-t">
+        <div className="bg-gray-50 px-5 py-3 text-xs text-gray-500 border-t flex items-center gap-2">
+          <CalendarClock className="h-3.5 w-3.5" />
           Updated {new Date(project.updated_at).toLocaleDateString()}
         </div>
       </div>
