@@ -864,7 +864,7 @@ export const generateBriefItemsPdf = async (
       </div>
     `;
 
-    const projectPhotos = photos.filter((photo) => photo.project_id === project.id).slice(0, 5);
+    const projectPhotos = photos.filter((photo) => photo.project_id === project.id).slice(0, 10);
     const photosSection = document.createElement('div');
     photosSection.style.marginBottom = '16px';
     if (projectPhotos.length > 0) {

@@ -204,7 +204,7 @@ const Reports = () => {
       let projectPhotos: Drawing[] = [];
       try {
         projectPhotos = await getDrawingsByProjectId(projectId);
-        projectPhotos = projectPhotos.filter((item) => item.type === 'Photo').slice(0, 5);
+        projectPhotos = projectPhotos.filter((item) => item.type === 'Photo').slice(0, 10);
       } catch (error) {
         console.error('Error fetching project photos:', error);
       }
