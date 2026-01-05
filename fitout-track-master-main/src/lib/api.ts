@@ -430,15 +430,20 @@ export async function createSnag(snag: Omit<Snag, 'id' | 'created_at' | 'updated
       }
 
       if (error) {
+        const fallbackMessage = String(error.message || error.details || error.hint || '');
         console.error("Error creating snag:", error);
-        throw error;
+        throw new Error(fallbackMessage || 'Failed to add snag.');
       }
     }
 
     return data as Snag;
   } catch (error) {
+    const message =
+      error instanceof Error && error.message
+        ? error.message
+        : 'Failed to add snag. Please ensure snags migrations and RLS policy are applied.';
     console.error("Error in createSnag:", error);
-    throw error;
+    throw new Error(message);
   }
 }
 
@@ -457,14 +462,19 @@ export async function updateSnag(id: string, updates: Partial<Snag>): Promise<Sn
       .single();
 
     if (error) {
+      const errorMessage = String(error.message || error.details || error.hint || '');
       console.error("Error updating snag:", error);
-      throw error;
+      throw new Error(errorMessage || 'Failed to update snag.');
     }
 
     return data as Snag;
   } catch (error) {
+    const message =
+      error instanceof Error && error.message
+        ? error.message
+        : 'Failed to update snag. Please ensure snags migrations and RLS policy are applied.';
     console.error("Error in updateSnag:", error);
-    throw error;
+    throw new Error(message);
   }
 }
 
