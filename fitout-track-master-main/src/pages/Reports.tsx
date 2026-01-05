@@ -299,7 +299,7 @@ const Reports = () => {
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Reports</h1>
               <p className="text-gray-600 mt-1">
-                Generate and export project reports
+                Generate and export professional project reports
               </p>
             </div>
             
@@ -318,7 +318,7 @@ const Reports = () => {
             <CardHeader className="pb-3">
               <CardTitle>Filter Reports</CardTitle>
               <CardDescription>
-                Filter and search across projects to generate custom reports
+                Filter and search across projects for focused, professional reporting
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -421,7 +421,7 @@ const Reports = () => {
                     <TabsList>
                       <TabsTrigger value="table">Table View</TabsTrigger>
                       <TabsTrigger value="charts">Charts</TabsTrigger>
-                      <TabsTrigger value="items-brief">Brief Items Progress</TabsTrigger>
+                      <TabsTrigger value="items-brief">Brief Items</TabsTrigger>
                       <TabsTrigger value="snags">Snags</TabsTrigger>
                     </TabsList>
                   </Tabs>

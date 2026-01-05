@@ -65,6 +65,9 @@ const ItemsProgressBrief: React.FC<ItemsProgressBriefProps> = ({
         ) : null}
       </CardHeader>
       <CardContent className="space-y-6">
+        <p className="text-sm text-muted-foreground">
+          A concise view of owner and contractor items, grouped by project for quick review.
+        </p>
         {groupedByProject.length === 0 ? (
           <div className="py-10 text-center text-sm text-muted-foreground">
             No projects available for this report.

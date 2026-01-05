@@ -89,9 +89,12 @@ const SnagsReport: React.FC<SnagsReportProps> = ({ snags, projects, onViewProjec
           </CardTitle>
         </CardHeader>
         <CardContent>
+          <p className="text-sm text-muted-foreground mb-4">
+            Track open issues by project with clear status and contractor ownership.
+          </p>
           <div className="rounded-md border">
             <Table>
-            <TableHeader className="bg-muted/40">
+              <TableHeader className="bg-muted/40">
               <TableRow>
                 <TableHead>Project</TableHead>
                 <TableHead>Snag</TableHead>
