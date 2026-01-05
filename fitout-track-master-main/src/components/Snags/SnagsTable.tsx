@@ -36,7 +36,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { createSnag, deleteSnag, getSnagsByProjectId, updateSnag } from '@/lib/api';
-import { Snag, SnagStatus } from '@/lib/types';
+import { getAllUsers, getProjectUsers } from '@/lib/auth';
+import { Snag, SnagStatus, User } from '@/lib/types';
 
 interface SnagsTableProps {
   projectId: string;
@@ -46,6 +47,7 @@ interface SnagFormData {
   title: string;
   description: string;
   status: SnagStatus;
+  contractorId: string;
 }
 
 const statusOptions: SnagStatus[] = ['Open', 'In Progress', 'Resolved', 'Closed'];
@@ -54,6 +56,7 @@ const initialFormData: SnagFormData = {
   title: '',
   description: '',
   status: 'Open',
+  contractorId: '',
 };
 
 const getStatusColor = (status: SnagStatus) => {
@@ -84,6 +87,22 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
     queryFn: () => getSnagsByProjectId(projectId),
     enabled: !!projectId,
   });
+
+  const { data: projectUsers = [] } = useQuery({
+    queryKey: ['projectUsers', projectId],
+    queryFn: () => getProjectUsers(projectId),
+    enabled: !!projectId,
+  });
+
+  const { data: users = [] } = useQuery({
+    queryKey: ['users'],
+    queryFn: () => getAllUsers(),
+  });
+
+  const contractorOptions = useMemo(() => {
+    const projectUserIds = new Set((projectUsers as User[]).map((item) => item.id));
+    return (users as User[]).filter((user) => user.role === 'Contractor' && projectUserIds.has(user.id));
+  }, [projectUsers, users]);
 
   const createSnagMutation = useMutation({
     mutationFn: (snag: Omit<Snag, 'id' | 'created_at' | 'updated_at'>) => createSnag(snag),
@@ -137,6 +156,7 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
           title: snag.title,
           description: snag.description,
           status: snag.status,
+          contractorId: snag.contractor_id || '',
         });
     } else {
       setEditingSnag(null);
@@ -159,6 +179,10 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
     setFormData((prev) => ({ ...prev, status: value }));
   };
 
+  const handleContractorChange = (value: string) => {
+    setFormData((prev) => ({ ...prev, contractorId: value }));
+  };
+
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -167,7 +191,7 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
       title: formData.title.trim(),
       description: formData.description.trim(),
       status: formData.status,
-      scope: 'Contractor',
+      contractor_id: formData.contractorId === 'unassigned' ? null : formData.contractorId,
     };
 
     if (editingSnag) {
@@ -233,6 +257,7 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
               <TableRow>
                 <TableHead>Snag</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Contractor</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -240,13 +265,13 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
                     Loading snags...
                   </TableCell>
                 </TableRow>
               ) : filteredSnags.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
                     No snags found for this project.
                   </TableCell>
                 </TableRow>
@@ -261,6 +286,9 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
                       <Badge className={`${getStatusColor(snag.status)} text-white`}>
                         {snag.status}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {contractorOptions.find((user) => user.id === snag.contractor_id)?.username || 'Unassigned'}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {snag.created_at ? new Date(snag.created_at).toLocaleDateString() : '—'}
@@ -327,6 +355,25 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
                     {statusOptions.map((status) => (
                       <SelectItem key={status} value={status}>
                         {status}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>Contractor</Label>
+                <Select
+                  value={formData.contractorId}
+                  onValueChange={handleContractorChange}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select contractor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {contractorOptions.map((contractor) => (
+                      <SelectItem key={contractor.id} value={contractor.id}>
+                        {contractor.username}
                       </SelectItem>
                     ))}
                   </SelectContent>

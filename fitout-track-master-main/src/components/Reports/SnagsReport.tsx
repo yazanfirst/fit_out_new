@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { Snag, Project, SnagStatus } from '@/lib/types';
+import { Snag, Project, SnagStatus, User } from '@/lib/types';
+import { getAllUsers } from '@/lib/auth';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useQuery } from '@tanstack/react-query';
 
 interface SnagsReportProps {
   snags: Snag[];
@@ -42,6 +44,14 @@ const getStatusColor = (status: SnagStatus) => {
 };
 
 const SnagsReport: React.FC<SnagsReportProps> = ({ snags, projects, onViewProject }) => {
+  const { data: users = [] } = useQuery({
+    queryKey: ['users'],
+    queryFn: () => getAllUsers(),
+  });
+
+  const contractorLookup = useMemo(() => {
+    return new Map((users as User[]).map((user) => [user.id, user.username]));
+  }, [users]);
   const projectMap = useMemo(() => {
     return new Map(projects.map((project) => [project.id, project]));
   }, [projects]);
@@ -96,6 +106,7 @@ const SnagsReport: React.FC<SnagsReportProps> = ({ snags, projects, onViewProjec
                   <TableHead>Project</TableHead>
                 <TableHead>Snag</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Contractor</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -103,7 +114,7 @@ const SnagsReport: React.FC<SnagsReportProps> = ({ snags, projects, onViewProjec
               <TableBody>
                 {sortedSnags.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
                       No snags found for the selected projects.
                     </TableCell>
                   </TableRow>
@@ -130,6 +141,9 @@ const SnagsReport: React.FC<SnagsReportProps> = ({ snags, projects, onViewProjec
                           <Badge className={`${getStatusColor(snag.status)} text-white`}>
                             {snag.status}
                           </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {snag.contractor_id ? contractorLookup.get(snag.contractor_id) || 'Unknown' : 'Unassigned'}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {snag.created_at ? new Date(snag.created_at).toLocaleDateString() : '—'}
