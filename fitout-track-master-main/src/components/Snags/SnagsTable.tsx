@@ -236,7 +236,7 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
 
         <div className="rounded-md border">
           <Table>
-            <TableHeader>
+            <TableHeader className="bg-muted/40">
               <TableRow>
                 <TableHead>Snag</TableHead>
                 <TableHead>Status</TableHead>

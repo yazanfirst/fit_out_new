@@ -614,11 +614,11 @@ const ItemsTable: React.FC<ItemsTableProps> = ({ projectId }) => {
             <div className="rounded-md border">
               <DragDropContext onDragEnd={(result) => handleDragEnd(result, 'Owner')}>
                 <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead />
-                      <TableHead>Item Name</TableHead>
-                      <TableHead>Category</TableHead>
+                <TableHeader className="bg-muted/40">
+                  <TableRow>
+                    <TableHead />
+                    <TableHead>Item Name</TableHead>
+                    <TableHead>Category</TableHead>
                       <TableHead className="text-center">Qty</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Company</TableHead>
@@ -708,11 +708,11 @@ const ItemsTable: React.FC<ItemsTableProps> = ({ projectId }) => {
             <div className="rounded-md border">
               <DragDropContext onDragEnd={(result) => handleDragEnd(result, 'Contractor')}>
                 <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead />
-                      <TableHead>Item Name</TableHead>
-                      <TableHead>Category</TableHead>
+                <TableHeader className="bg-muted/40">
+                  <TableRow>
+                    <TableHead />
+                    <TableHead>Item Name</TableHead>
+                    <TableHead>Category</TableHead>
                       <TableHead>Work Description</TableHead>
                       <TableHead className="text-center">Completion</TableHead>
                       <TableHead>Status</TableHead>

@@ -48,6 +48,7 @@ import ProjectUsers from '@/components/ProjectUsers';
 import { useAuth } from '@/contexts/AuthContext';
 import KanbanBoard from '@/components/Kanban/KanbanBoard';
 import SnagsTable from '@/components/Snags/SnagsTable';
+import { getProjectHealth } from '@/utils/projectInsights';
 
 const ProjectDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -268,6 +269,7 @@ const ProjectDetails = () => {
     m.status === 'Delayed' || (new Date(m.planned_date) < new Date() && m.status !== 'Completed')
   ).length;
   const openSnags = snags.filter(snag => snag.status === 'Open').length;
+  const projectHealth = getProjectHealth(project, milestones);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -277,6 +279,19 @@ const ProjectDetails = () => {
       case 'On Hold': return 'bg-warning';
       case 'Not Started': return 'bg-gray-400';
       default: return 'bg-gray-400';
+    }
+  };
+
+  const getHealthColor = (tone: string) => {
+    switch (tone) {
+      case 'good':
+        return 'bg-emerald-500';
+      case 'warn':
+        return 'bg-amber-500';
+      case 'risk':
+        return 'bg-rose-500';
+      default:
+        return 'bg-gray-400';
     }
   };
   
@@ -296,7 +311,7 @@ const ProjectDetails = () => {
               Back to Dashboard
             </Button>
             
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
                 <div className="flex items-center mb-1">
                   {project.chain === 'BK' ? (
@@ -309,12 +324,15 @@ const ProjectDetails = () => {
                 <p className="text-gray-600 mt-1">{project.location}</p>
               </div>
               
-              <div className="mt-4 md:mt-0 flex flex-col sm:flex-row md:items-end gap-3">
-                <Badge 
-                  className={`${getStatusColor(project.status)} text-white`}
-                >
-                  {project.status}
-                </Badge>
+              <div className="mt-4 md:mt-0 flex flex-col sm:flex-row md:items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className={`${getStatusColor(project.status)} text-white`}>
+                    {project.status}
+                  </Badge>
+                  <Badge className={`${getHealthColor(projectHealth.tone)} text-white`}>
+                    {projectHealth.label}
+                  </Badge>
+                </div>
                 <Button onClick={handleEditModalOpen}>
                   <Edit className="h-4 w-4 mr-2" />
                   Edit Project
@@ -470,6 +488,13 @@ const ProjectDetails = () => {
                 <CardTitle>Project Info</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
+                <div>
+                  <h4 className="text-sm font-medium">Health</h4>
+                  <Badge className={`${getHealthColor(projectHealth.tone)} text-white`}>
+                    {projectHealth.label}
+                  </Badge>
+                  <p className="text-xs text-muted-foreground mt-1">{projectHealth.reason}</p>
+                </div>
                 <div>
                   <h4 className="text-sm font-medium">Created On</h4>
                   <p className="text-sm text-muted-foreground">

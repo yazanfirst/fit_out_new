@@ -829,10 +829,19 @@ export const generateBriefItemsPdf = async (
           <div>
             <div style="font-weight:600;font-size:16px;color:#0f172a;">${project.name}</div>
             <div style="font-size:13px;color:#64748b;">${project.location}</div>
+            <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <span style="padding:3px 8px;border-radius:999px;background:#0f172a;color:white;font-size:11px;">
+                ${project.status}
+              </span>
+              <span style="font-size:12px;color:#475569;">Progress: ${project.progress}%</span>
+            </div>
           </div>
           <span style="padding:4px 10px;border-radius:999px;background:#0f172a;color:white;font-size:12px;">
             Updated ${new Date(project.updated_at).toLocaleDateString()}
           </span>
+        </div>
+        <div style="margin-top:10px;background:#e2e8f0;border-radius:999px;overflow:hidden;height:8px;">
+          <div style="width:${project.progress}%;background:#2563eb;height:8px;"></div>
         </div>
       </div>
     `;

@@ -99,7 +99,7 @@ const ItemsProgressBrief: React.FC<ItemsProgressBriefProps> = ({
                   <h3 className="text-sm font-semibold text-gray-700 mb-2">Owner Items</h3>
                   <div className="rounded-md border">
                     <Table>
-                      <TableHeader>
+                      <TableHeader className="bg-muted/40">
                         <TableRow>
                           <TableHead>Item</TableHead>
                           <TableHead>Category</TableHead>
@@ -139,7 +139,7 @@ const ItemsProgressBrief: React.FC<ItemsProgressBriefProps> = ({
                   <h3 className="text-sm font-semibold text-gray-700 mb-2">Contractor Items</h3>
                   <div className="rounded-md border">
                     <Table>
-                      <TableHeader>
+                      <TableHeader className="bg-muted/40">
                         <TableRow>
                           <TableHead>Item</TableHead>
                           <TableHead>Category</TableHead>

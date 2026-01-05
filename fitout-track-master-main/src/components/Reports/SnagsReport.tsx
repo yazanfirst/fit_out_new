@@ -91,9 +91,9 @@ const SnagsReport: React.FC<SnagsReportProps> = ({ snags, projects, onViewProjec
         <CardContent>
           <div className="rounded-md border">
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Project</TableHead>
+            <TableHeader className="bg-muted/40">
+              <TableRow>
+                <TableHead>Project</TableHead>
                 <TableHead>Snag</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Contractor</TableHead>
