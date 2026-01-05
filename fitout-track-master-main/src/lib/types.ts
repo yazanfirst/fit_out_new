@@ -133,7 +133,7 @@ export interface Snag {
   title: string;
   description: string;
   status: SnagStatus;
-  contractor_id?: string | null;
+  contractor_name?: string | null;
   created_at: string;
   updated_at: string;
 }

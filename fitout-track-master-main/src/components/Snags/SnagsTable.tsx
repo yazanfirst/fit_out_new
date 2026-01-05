@@ -19,13 +19,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -36,8 +29,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { createSnag, deleteSnag, getSnagsByProjectId, updateSnag } from '@/lib/api';
-import { getAllUsers, getProjectUsers } from '@/lib/auth';
-import { Snag, SnagStatus, User } from '@/lib/types';
+import { Snag, SnagStatus } from '@/lib/types';
 
 interface SnagsTableProps {
   projectId: string;
@@ -47,7 +39,7 @@ interface SnagFormData {
   title: string;
   description: string;
   status: SnagStatus;
-  contractorId: string;
+  contractorName: string;
 }
 
 const statusOptions: SnagStatus[] = ['Open', 'In Progress', 'Resolved', 'Closed'];
@@ -56,7 +48,7 @@ const initialFormData: SnagFormData = {
   title: '',
   description: '',
   status: 'Open',
-  contractorId: '',
+  contractorName: '',
 };
 
 const getStatusColor = (status: SnagStatus) => {
@@ -87,22 +79,6 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
     queryFn: () => getSnagsByProjectId(projectId),
     enabled: !!projectId,
   });
-
-  const { data: projectUsers = [] } = useQuery({
-    queryKey: ['projectUsers', projectId],
-    queryFn: () => getProjectUsers(projectId),
-    enabled: !!projectId,
-  });
-
-  const { data: users = [] } = useQuery({
-    queryKey: ['users'],
-    queryFn: () => getAllUsers(),
-  });
-
-  const contractorOptions = useMemo(() => {
-    const projectUserIds = new Set((projectUsers as User[]).map((item) => item.id));
-    return (users as User[]).filter((user) => user.role === 'Contractor' && projectUserIds.has(user.id));
-  }, [projectUsers, users]);
 
   const createSnagMutation = useMutation({
     mutationFn: (snag: Omit<Snag, 'id' | 'created_at' | 'updated_at'>) => createSnag(snag),
@@ -156,7 +132,7 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
           title: snag.title,
           description: snag.description,
           status: snag.status,
-          contractorId: snag.contractor_id || '',
+          contractorName: snag.contractor_name || '',
         });
     } else {
       setEditingSnag(null);
@@ -180,7 +156,7 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
   };
 
   const handleContractorChange = (value: string) => {
-    setFormData((prev) => ({ ...prev, contractorId: value }));
+    setFormData((prev) => ({ ...prev, contractorName: value }));
   };
 
 
@@ -191,7 +167,7 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
       title: formData.title.trim(),
       description: formData.description.trim(),
       status: formData.status,
-      contractor_id: formData.contractorId === 'unassigned' ? null : formData.contractorId,
+      contractor_name: formData.contractorName.trim() || null,
     };
 
     if (editingSnag) {
@@ -288,7 +264,7 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {contractorOptions.find((user) => user.id === snag.contractor_id)?.username || 'Unassigned'}
+                      {snag.contractor_name || 'Unassigned'}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {snag.created_at ? new Date(snag.created_at).toLocaleDateString() : '—'}
@@ -362,22 +338,11 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
               </div>
               <div className="grid gap-2">
                 <Label>Contractor</Label>
-                <Select
-                  value={formData.contractorId}
-                  onValueChange={handleContractorChange}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select contractor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unassigned">Unassigned</SelectItem>
-                    {contractorOptions.map((contractor) => (
-                      <SelectItem key={contractor.id} value={contractor.id}>
-                        {contractor.username}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input
+                  value={formData.contractorName}
+                  onChange={(event) => handleContractorChange(event.target.value)}
+                  placeholder="Type contractor name"
+                />
               </div>
             </div>
             <DialogFooter>

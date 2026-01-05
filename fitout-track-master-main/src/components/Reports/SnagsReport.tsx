@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { Snag, Project, SnagStatus, User } from '@/lib/types';
-import { getAllUsers } from '@/lib/auth';
+import { Snag, Project, SnagStatus } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,7 +17,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useQuery } from '@tanstack/react-query';
 
 interface SnagsReportProps {
   snags: Snag[];
@@ -44,14 +42,6 @@ const getStatusColor = (status: SnagStatus) => {
 };
 
 const SnagsReport: React.FC<SnagsReportProps> = ({ snags, projects, onViewProject }) => {
-  const { data: users = [] } = useQuery({
-    queryKey: ['users'],
-    queryFn: () => getAllUsers(),
-  });
-
-  const contractorLookup = useMemo(() => {
-    return new Map((users as User[]).map((user) => [user.id, user.username]));
-  }, [users]);
   const projectMap = useMemo(() => {
     return new Map(projects.map((project) => [project.id, project]));
   }, [projects]);
@@ -143,7 +133,7 @@ const SnagsReport: React.FC<SnagsReportProps> = ({ snags, projects, onViewProjec
                           </Badge>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {snag.contractor_id ? contractorLookup.get(snag.contractor_id) || 'Unknown' : 'Unassigned'}
+                          {snag.contractor_name || 'Unassigned'}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {snag.created_at ? new Date(snag.created_at).toLocaleDateString() : '—'}
