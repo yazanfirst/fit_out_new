@@ -5,40 +5,6 @@ import { createAuditLog, getCurrentUser } from './auth';
 
 const API_BASE_URL = 'http://localhost:3000/api';
 
-const isMissingSnagsTable = (error: { message?: string } | null) => {
-  const message = error?.message || '';
-  return message.includes('relation "snags" does not exist') || message.includes('snags');
-};
-
-const mapSnagStatusToTaskStatus = (status: Snag['status']) => {
-  switch (status) {
-    case 'Open':
-      return 'todo';
-    case 'In Progress':
-      return 'in_progress';
-    case 'Resolved':
-      return 'review';
-    case 'Closed':
-      return 'done';
-    default:
-      return 'todo';
-  }
-};
-
-const mapTaskStatusToSnagStatus = (status: Task['status']): Snag['status'] => {
-  switch (status) {
-    case 'todo':
-      return 'Open';
-    case 'in_progress':
-      return 'In Progress';
-    case 'review':
-      return 'Resolved';
-    case 'done':
-      return 'Closed';
-    default:
-      return 'Open';
-  }
-};
 
 // Helper function removed as we'll always use database
 
@@ -402,30 +368,6 @@ export async function getSnagsByProjectId(projectId: string): Promise<Snag[]> {
       .order('created_at', { ascending: false });
 
     if (error) {
-      if (isMissingSnagsTable(error)) {
-        const { data: tasks, error: taskError } = await supabase
-          .from('tasks')
-          .select('*')
-          .eq('project_id', projectId)
-          .order('created_at', { ascending: false });
-
-        if (taskError) {
-          console.error("Error fetching snags from tasks:", taskError);
-          throw taskError;
-        }
-
-        return (tasks || []).map((task) => ({
-          id: task.id,
-          project_id: task.project_id,
-          title: task.title,
-          description: task.description,
-          status: mapTaskStatusToSnagStatus(task.status as Task['status']),
-          contractor_name: task.assigned_to || null,
-          created_at: task.created_at,
-          updated_at: task.updated_at,
-        })) as Snag[];
-      }
-
       console.error("Error fetching snags:", error);
       throw error;
     }
@@ -450,30 +392,6 @@ export async function getSnagsByProjectIds(projectIds: string[]): Promise<Snag[]
       .order('created_at', { ascending: false });
 
     if (error) {
-      if (isMissingSnagsTable(error)) {
-        const { data: tasks, error: taskError } = await supabase
-          .from('tasks')
-          .select('*')
-          .in('project_id', projectIds)
-          .order('created_at', { ascending: false });
-
-        if (taskError) {
-          console.error("Error fetching snags from tasks:", taskError);
-          throw taskError;
-        }
-
-        return (tasks || []).map((task) => ({
-          id: task.id,
-          project_id: task.project_id,
-          title: task.title,
-          description: task.description,
-          status: mapTaskStatusToSnagStatus(task.status as Task['status']),
-          contractor_name: task.assigned_to || null,
-          created_at: task.created_at,
-          updated_at: task.updated_at,
-        })) as Snag[];
-      }
-
       console.error("Error fetching snags:", error);
       throw error;
     }
@@ -499,39 +417,6 @@ export async function createSnag(snag: Omit<Snag, 'id' | 'created_at' | 'updated
       .single();
 
     if (error) {
-      if (isMissingSnagsTable(error)) {
-        const { data: taskData, error: taskError } = await supabase
-          .from('tasks')
-          .insert([{
-            project_id: payload.project_id,
-            title: payload.title,
-            description: payload.description,
-            status: mapSnagStatusToTaskStatus(payload.status),
-            priority: 'medium',
-            assigned_to: payload.contractor_name || null,
-            due_date: null,
-            order_index: 0,
-          }])
-          .select()
-          .single();
-
-        if (taskError) {
-          console.error("Error creating snag in tasks:", taskError);
-          throw taskError;
-        }
-
-        return {
-          id: taskData.id,
-          project_id: taskData.project_id,
-          title: taskData.title,
-          description: taskData.description,
-          status: mapTaskStatusToSnagStatus(taskData.status as Task['status']),
-          contractor_name: taskData.assigned_to || null,
-          created_at: taskData.created_at,
-          updated_at: taskData.updated_at,
-        } as Snag;
-      }
-
       const errorMessage = String(error.message || '');
       if (errorMessage.includes('contractor_name')) {
         const fallbackPayload = { ...payload };
@@ -578,37 +463,6 @@ export async function updateSnag(id: string, updates: Partial<Snag>): Promise<Sn
       .single();
 
     if (error) {
-      if (isMissingSnagsTable(error)) {
-        const taskUpdates: Partial<Task> = {
-          title: payload.title,
-          description: payload.description,
-          status: payload.status ? mapSnagStatusToTaskStatus(payload.status) : undefined,
-          assigned_to: payload.contractor_name ?? undefined,
-        };
-        const { data: taskData, error: taskError } = await supabase
-          .from('tasks')
-          .update(taskUpdates)
-          .eq('id', id)
-          .select()
-          .single();
-
-        if (taskError) {
-          console.error("Error updating snag in tasks:", taskError);
-          throw taskError;
-        }
-
-        return {
-          id: taskData.id,
-          project_id: taskData.project_id,
-          title: taskData.title,
-          description: taskData.description,
-          status: mapTaskStatusToSnagStatus(taskData.status as Task['status']),
-          contractor_name: taskData.assigned_to || null,
-          created_at: taskData.created_at,
-          updated_at: taskData.updated_at,
-        } as Snag;
-      }
-
       const errorMessage = String(error.message || error.details || error.hint || '');
       console.error("Error updating snag:", error);
       throw new Error(errorMessage || 'Failed to update snag.');
@@ -633,20 +487,6 @@ export async function deleteSnag(id: string): Promise<boolean> {
       .eq('id', id);
 
     if (error) {
-      if (isMissingSnagsTable(error)) {
-        const { error: taskError } = await supabase
-          .from('tasks')
-          .delete()
-          .eq('id', id);
-
-        if (taskError) {
-          console.error("Error deleting snag in tasks:", taskError);
-          throw taskError;
-        }
-
-        return true;
-      }
-
       console.error("Error deleting snag:", error);
       throw error;
     }
