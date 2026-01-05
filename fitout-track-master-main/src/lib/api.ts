@@ -404,15 +404,35 @@ export async function getSnagsByProjectIds(projectIds: string[]): Promise<Snag[]
 
 export async function createSnag(snag: Omit<Snag, 'id' | 'created_at' | 'updated_at'>): Promise<Snag | null> {
   try {
-    const { data, error } = await supabase
+    const payload = { ...snag };
+    if (!payload.contractor_name) {
+      delete (payload as Partial<Snag>).contractor_name;
+    }
+
+    let { data, error } = await supabase
       .from('snags')
-      .insert([snag])
+      .insert([payload])
       .select()
       .single();
 
     if (error) {
-      console.error("Error creating snag:", error);
-      throw error;
+      const errorMessage = String(error.message || '');
+      if (errorMessage.includes('contractor_name')) {
+        const fallbackPayload = { ...payload };
+        delete (fallbackPayload as Partial<Snag>).contractor_name;
+        const fallback = await supabase
+          .from('snags')
+          .insert([fallbackPayload])
+          .select()
+          .single();
+        data = fallback.data as Snag;
+        error = fallback.error;
+      }
+
+      if (error) {
+        console.error("Error creating snag:", error);
+        throw error;
+      }
     }
 
     return data as Snag;
@@ -424,9 +444,14 @@ export async function createSnag(snag: Omit<Snag, 'id' | 'created_at' | 'updated
 
 export async function updateSnag(id: string, updates: Partial<Snag>): Promise<Snag | null> {
   try {
+    const payload = { ...updates };
+    if (payload.contractor_name === '') {
+      payload.contractor_name = null;
+    }
+
     const { data, error } = await supabase
       .from('snags')
-      .update(updates)
+      .update(payload)
       .eq('id', id)
       .select()
       .single();
