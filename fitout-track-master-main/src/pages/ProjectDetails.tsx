@@ -47,6 +47,7 @@ import { Project, ProjectStatus } from '@/lib/types';
 import ProjectUsers from '@/components/ProjectUsers';
 import { useAuth } from '@/contexts/AuthContext';
 import KanbanBoard from '@/components/Kanban/KanbanBoard';
+import { getProjectHealthSummary } from '@/utils/projectHealth';
 
 const ProjectDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -254,12 +255,13 @@ const ProjectDetails = () => {
     updatedAt: project.updated_at,
   };
 
-  // Calculate derived states
-  const pendingItems = items.filter(item => item.status === 'Not Ordered').length;
-  const pendingInvoices = invoices.filter(invoice => invoice.status === 'Submitted').length;
-  const delayedMilestones = milestones.filter(m => 
-    m.status === 'Delayed' || (new Date(m.planned_date) < new Date() && m.status !== 'Completed')
-  ).length;
+  const healthSummary = getProjectHealthSummary({
+    project,
+    items,
+    invoices,
+    milestones,
+  });
+  const { pendingItems, pendingInvoices, delayedMilestones } = healthSummary;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -314,6 +316,48 @@ const ProjectDetails = () => {
               </div>
             </div>
           </div>
+
+          {(healthSummary.isAtRisk || healthSummary.needsAttention) && (
+            <Card
+              className={`mb-6 ${
+                healthSummary.isAtRisk
+                  ? 'border-rose-200 bg-rose-50'
+                  : 'border-amber-200 bg-amber-50'
+              }`}
+            >
+              <CardHeader className="pb-2">
+                <CardTitle
+                  className={`flex items-center text-lg ${
+                    healthSummary.isAtRisk ? 'text-rose-700' : 'text-amber-700'
+                  }`}
+                >
+                  <AlertTriangle className="h-4 w-4 mr-2" />
+                  {healthSummary.isAtRisk ? 'Project at Risk' : 'Needs Attention'}
+                </CardTitle>
+                <CardDescription className={healthSummary.isAtRisk ? 'text-rose-600' : 'text-amber-600'}>
+                  {healthSummary.isAtRisk
+                    ? 'Schedule delays or low progress need immediate action.'
+                    : 'There are open tasks or updates that require follow-up.'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="text-sm">
+                <ul
+                  className={`space-y-1 ${
+                    healthSummary.isAtRisk ? 'text-rose-700' : 'text-amber-700'
+                  }`}
+                >
+                  {healthSummary.isBehindSchedule && (
+                    <li>{delayedMilestones} milestone(s) are behind schedule.</li>
+                  )}
+                  {pendingItems > 0 && <li>{pendingItems} item(s) still not ordered.</li>}
+                  {pendingInvoices > 0 && <li>{pendingInvoices} invoice(s) awaiting approval.</li>}
+                  {healthSummary.staleUpdateDays !== null && healthSummary.staleUpdateDays >= 14 && (
+                    <li>Last updated {healthSummary.staleUpdateDays} days ago.</li>
+                  )}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <Card>
@@ -335,6 +379,34 @@ const ProjectDetails = () => {
                 </div>
                 <p className="text-xs text-muted-foreground mt-3">
                   Main Contractor: {project.main_contractor}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Health</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Badge
+                  className={`${
+                    healthSummary.isAtRisk
+                      ? 'bg-rose-500'
+                      : healthSummary.needsAttention
+                      ? 'bg-amber-500'
+                      : 'bg-emerald-500'
+                  } text-white`}
+                >
+                  {healthSummary.isAtRisk
+                    ? 'At Risk'
+                    : healthSummary.needsAttention
+                    ? 'Needs Attention'
+                    : 'On Track'}
+                </Badge>
+                <p className="text-xs text-muted-foreground">
+                  {healthSummary.isBehindSchedule
+                    ? `${delayedMilestones} delayed milestone(s)`
+                    : 'Schedule is tracking as planned.'}
                 </p>
               </CardContent>
             </Card>

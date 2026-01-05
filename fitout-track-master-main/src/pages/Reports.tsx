@@ -10,7 +10,10 @@ import {
   FileCheck,
   CheckSquare,
   ChevronLeft,
-  Search
+  Search,
+  AlertTriangle,
+  CalendarClock,
+  ShieldAlert
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +55,7 @@ import StatusDistributionChart from '@/components/Charts/StatusDistributionChart
 import TimelineChart from '@/components/Charts/TimelineChart';
 import { generatePdfReport, ReportConfig } from '@/utils/reportGenerator';
 import ProjectReport from '@/components/Reports/ProjectReport';
+import { getProjectHealthSummary } from '@/utils/projectHealth';
 
 const Reports = () => {
   const navigate = useNavigate();
@@ -112,6 +116,22 @@ const Reports = () => {
   const selectedProject = selectedProjectId 
     ? projects.find(p => p.id === selectedProjectId) 
     : null;
+
+  const projectHealthById = Object.fromEntries(
+    filteredProjects.map((project) => [
+      project.id,
+      getProjectHealthSummary({ project }),
+    ])
+  );
+  const atRiskCount = filteredProjects.filter(
+    (project) => projectHealthById[project.id]?.isAtRisk
+  ).length;
+  const behindScheduleCount = filteredProjects.filter(
+    (project) => projectHealthById[project.id]?.isBehindSchedule
+  ).length;
+  const needsAttentionCount = filteredProjects.filter(
+    (project) => projectHealthById[project.id]?.needsAttention
+  ).length;
   
   // Status color mapping
   const getStatusColor = (status: ProjectStatus) => {
@@ -301,6 +321,45 @@ const Reports = () => {
               </div>
             </CardContent>
           </Card>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <Card className="border-rose-200 bg-rose-50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-rose-700 flex items-center">
+                  <ShieldAlert className="h-4 w-4 mr-2" />
+                  At Risk
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex items-center justify-between">
+                <div className="text-2xl font-bold text-rose-700">{atRiskCount}</div>
+                <p className="text-xs text-rose-600">Projects needing urgent focus</p>
+              </CardContent>
+            </Card>
+            <Card className="border-amber-200 bg-amber-50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-amber-700 flex items-center">
+                  <CalendarClock className="h-4 w-4 mr-2" />
+                  Behind Schedule
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex items-center justify-between">
+                <div className="text-2xl font-bold text-amber-700">{behindScheduleCount}</div>
+                <p className="text-xs text-amber-600">Milestones trending late</p>
+              </CardContent>
+            </Card>
+            <Card className="border-yellow-200 bg-yellow-50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-yellow-700 flex items-center">
+                  <AlertTriangle className="h-4 w-4 mr-2" />
+                  Needs Attention
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex items-center justify-between">
+                <div className="text-2xl font-bold text-yellow-700">{needsAttentionCount}</div>
+                <p className="text-xs text-yellow-600">Follow-up or updates required</p>
+              </CardContent>
+            </Card>
+          </div>
           
           <Card className="shadow-md">
             <CardHeader>
@@ -398,65 +457,80 @@ const Reports = () => {
                             </td>
                           </tr>
                         ) : (
-                          filteredProjects.map((project) => (
-                            <tr 
-                              key={project.id}
-                              className="hover:bg-gray-50 cursor-pointer"
-                              onClick={() => setSelectedProjectId(project.id)}
-                            >
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm font-medium text-gray-900">{project.name}</div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-500">{project.location}</div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className={`text-sm ${project.chain === 'BK' ? 'text-bk font-medium' : 'text-tc font-medium'}`}>
-                                  {project.chain === 'BK' ? 'Burger King' : 'Texas Chicken'}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <Badge className={`${getStatusColor(project.status)} text-white`}>
-                                  {project.status}
-                                </Badge>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="w-full">
-                                  <div className="text-sm font-medium mb-1">{project.progress}%</div>
-                                  <Progress value={project.progress} className="h-2 w-full" />
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-500">
-                                  {new Date(project.updated_at).toLocaleDateString()}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                                <div className="flex items-center space-x-2">
-                                  <Button 
-                                    variant="outline"
-                                    size="sm" 
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleViewProject(project.id);
-                                    }}
-                                  >
-                                    View
-                                  </Button>
-                                  <Button 
-                                    variant="default"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedProjectId(project.id);
-                                    }}
-                                  >
-                                    Report
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))
+                          filteredProjects.map((project) => {
+                            const healthSummary = projectHealthById[project.id];
+
+                            return (
+                              <tr 
+                                key={project.id}
+                                className="hover:bg-gray-50 cursor-pointer"
+                                onClick={() => setSelectedProjectId(project.id)}
+                              >
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="text-sm font-medium text-gray-900">{project.name}</div>
+                                  <div className="mt-1 flex flex-wrap gap-2">
+                                    {healthSummary?.isAtRisk && (
+                                      <Badge className="bg-rose-500 text-white">At Risk</Badge>
+                                    )}
+                                    {healthSummary?.isBehindSchedule && (
+                                      <Badge className="bg-amber-500 text-white">Behind Schedule</Badge>
+                                    )}
+                                    {healthSummary?.needsAttention && !healthSummary?.isAtRisk && (
+                                      <Badge className="bg-yellow-500 text-white">Needs Attention</Badge>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="text-sm text-gray-500">{project.location}</div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className={`text-sm ${project.chain === 'BK' ? 'text-bk font-medium' : 'text-tc font-medium'}`}>
+                                    {project.chain === 'BK' ? 'Burger King' : 'Texas Chicken'}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <Badge className={`${getStatusColor(project.status)} text-white`}>
+                                    {project.status}
+                                  </Badge>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="w-full">
+                                    <div className="text-sm font-medium mb-1">{project.progress}%</div>
+                                    <Progress value={project.progress} className="h-2 w-full" />
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="text-sm text-gray-500">
+                                    {new Date(project.updated_at).toLocaleDateString()}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                  <div className="flex items-center space-x-2">
+                                    <Button 
+                                      variant="outline"
+                                      size="sm" 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleViewProject(project.id);
+                                      }}
+                                    >
+                                      View
+                                    </Button>
+                                    <Button 
+                                      variant="default"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedProjectId(project.id);
+                                      }}
+                                    >
+                                      Report
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
                         )}
                       </tbody>
                     </table>
