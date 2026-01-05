@@ -36,7 +36,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { createSnag, deleteSnag, getSnagsByProjectId, updateSnag } from '@/lib/api';
-import { Snag, SnagStatus } from '@/lib/types';
+import { ProjectScope, Snag, SnagStatus } from '@/lib/types';
 
 interface SnagsTableProps {
   projectId: string;
@@ -46,6 +46,7 @@ interface SnagFormData {
   title: string;
   description: string;
   status: SnagStatus;
+  scope: ProjectScope;
 }
 
 const statusOptions: SnagStatus[] = ['Open', 'In Progress', 'Resolved', 'Closed'];
@@ -54,6 +55,7 @@ const initialFormData: SnagFormData = {
   title: '',
   description: '',
   status: 'Open',
+  scope: 'Contractor',
 };
 
 const getStatusColor = (status: SnagStatus) => {
@@ -133,11 +135,12 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
   const handleOpenModal = (snag?: Snag) => {
     if (snag) {
       setEditingSnag(snag);
-      setFormData({
-        title: snag.title,
-        description: snag.description,
-        status: snag.status,
-      });
+        setFormData({
+          title: snag.title,
+          description: snag.description,
+          status: snag.status,
+          scope: snag.scope,
+        });
     } else {
       setEditingSnag(null);
       setFormData(initialFormData);
@@ -159,6 +162,10 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
     setFormData((prev) => ({ ...prev, status: value }));
   };
 
+  const handleScopeChange = (value: ProjectScope) => {
+    setFormData((prev) => ({ ...prev, scope: value }));
+  };
+
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     const payload = {
@@ -166,6 +173,7 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
       title: formData.title.trim(),
       description: formData.description.trim(),
       status: formData.status,
+      scope: formData.scope,
     };
 
     if (editingSnag) {
@@ -231,6 +239,7 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
               <TableRow>
                 <TableHead>Snag</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Scope</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -238,13 +247,13 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
                     Loading snags...
                   </TableCell>
                 </TableRow>
               ) : filteredSnags.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
                     No snags found for this project.
                   </TableCell>
                 </TableRow>
@@ -259,6 +268,9 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
                       <Badge className={`${getStatusColor(snag.status)} text-white`}>
                         {snag.status}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {snag.scope}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {snag.created_at ? new Date(snag.created_at).toLocaleDateString() : '—'}
@@ -327,6 +339,21 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
                         {status}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>Scope</Label>
+                <Select
+                  value={formData.scope}
+                  onValueChange={(value) => handleScopeChange(value as ProjectScope)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select scope" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Owner">Owner</SelectItem>
+                    <SelectItem value="Contractor">Contractor</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
