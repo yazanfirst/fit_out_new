@@ -96,7 +96,6 @@ const SnagsReport: React.FC<SnagsReportProps> = ({ snags, projects, onViewProjec
                   <TableHead>Project</TableHead>
                 <TableHead>Snag</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Scope</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -104,7 +103,7 @@ const SnagsReport: React.FC<SnagsReportProps> = ({ snags, projects, onViewProjec
               <TableBody>
                 {sortedSnags.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
                       No snags found for the selected projects.
                     </TableCell>
                   </TableRow>
@@ -131,9 +130,6 @@ const SnagsReport: React.FC<SnagsReportProps> = ({ snags, projects, onViewProjec
                           <Badge className={`${getStatusColor(snag.status)} text-white`}>
                             {snag.status}
                           </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {snag.scope}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {snag.created_at ? new Date(snag.created_at).toLocaleDateString() : '—'}
