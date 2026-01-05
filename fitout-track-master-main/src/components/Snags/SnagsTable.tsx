@@ -92,8 +92,8 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
       toast.success('Snag added successfully!');
       setIsModalOpen(false);
     },
-    onError: () => {
-      toast.error('Failed to add snag.');
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to add snag.');
     },
   });
 
@@ -104,8 +104,8 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
       toast.success('Snag updated successfully!');
       setIsModalOpen(false);
     },
-    onError: () => {
-      toast.error('Failed to update snag.');
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to update snag.');
     },
   });
 
@@ -115,8 +115,8 @@ const SnagsTable: React.FC<SnagsTableProps> = ({ projectId }) => {
       queryClient.invalidateQueries({ queryKey: ['projectSnags', projectId] });
       toast.success('Snag deleted successfully!');
     },
-    onError: () => {
-      toast.error('Failed to delete snag.');
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to delete snag.');
     },
   });
 
