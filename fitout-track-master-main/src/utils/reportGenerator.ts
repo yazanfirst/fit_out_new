@@ -758,3 +758,236 @@ export const generatePdfReport = async (
     }
   })();
 };
+
+export const generateBriefItemsPdf = async (
+  projects: Project[],
+  items: ProjectItem[],
+  title = 'Brief Items Progress Report',
+  photos: Drawing[] = []
+) => {
+  const wrapper = document.createElement('div');
+  wrapper.style.fontFamily = 'Inter, system-ui, sans-serif';
+  wrapper.style.color = '#0f172a';
+
+  const header = document.createElement('div');
+  header.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div>
+        <h1 style="margin:0;color:#0f172a;font-size:22px;">${title}</h1>
+        <p style="margin:4px 0 0;color:#64748b;font-size:14px;">Generated on ${new Date().toLocaleDateString()}</p>
+      </div>
+      <div style="text-align:right;font-weight:600;color:#0f172a;">
+        <div style="font-size:18px;">FitoutTrack Master</div>
+        <div style="font-size:12px;color:#64748b;">Brief Items Report</div>
+      </div>
+    </div>
+    <hr style="border:none;height:1px;background:#e2e8f0;margin-bottom:16px;" />
+  `;
+  wrapper.appendChild(header);
+
+  const grouped = new Map<string, ProjectItem[]>();
+  items.forEach((item) => {
+    if (!grouped.has(item.project_id)) {
+      grouped.set(item.project_id, []);
+    }
+    grouped.get(item.project_id)?.push(item);
+  });
+
+  for (const project of projects) {
+    const projectItems = grouped.get(project.id) || [];
+    const ownerItems = projectItems.filter((item) => item.scope === 'Owner');
+    const contractorItems = projectItems.filter((item) => item.scope === 'Contractor');
+
+    const ownerStatusCounts = ownerItems.reduce<Record<string, number>>((acc, item) => {
+      acc[item.status] = (acc[item.status] || 0) + 1;
+      return acc;
+    }, {});
+
+    const contractorStatusCounts = contractorItems.reduce<Record<string, number>>((acc, item) => {
+      acc[item.status] = (acc[item.status] || 0) + 1;
+      return acc;
+    }, {});
+
+    const statusRow = (status: string, count: number, total: number) => {
+      const percent = total > 0 ? Math.round((count / total) * 100) : 0;
+      return `
+        <div style="display:flex;align-items:center;margin-bottom:6px;">
+          <div style="width:110px;font-size:12px;color:#475569;">${status}</div>
+          <div style="flex:1;background:#e2e8f0;border-radius:999px;overflow:hidden;height:10px;margin-right:8px;">
+            <div style="width:${percent}%;background:#2563eb;height:10px;border-radius:999px;"></div>
+          </div>
+          <div style="font-size:12px;color:#0f172a;">${count} (${percent}%)</div>
+        </div>
+      `;
+    };
+
+    const section = document.createElement('div');
+    section.style.marginBottom = '24px';
+    section.innerHTML = `
+      <div style="padding:14px;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-weight:600;font-size:16px;color:#0f172a;">${project.name}</div>
+            <div style="font-size:13px;color:#64748b;">${project.location}</div>
+            <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <span style="padding:3px 8px;border-radius:999px;background:#0f172a;color:white;font-size:11px;">
+                ${project.status}
+              </span>
+              <span style="font-size:12px;color:#475569;">Progress: ${project.progress}%</span>
+            </div>
+          </div>
+          <span style="padding:4px 10px;border-radius:999px;background:#0f172a;color:white;font-size:12px;">
+            Updated ${new Date(project.updated_at).toLocaleDateString()}
+          </span>
+        </div>
+        <div style="margin-top:10px;background:#e2e8f0;border-radius:999px;overflow:hidden;height:8px;">
+          <div style="width:${project.progress}%;background:#2563eb;height:8px;"></div>
+        </div>
+      </div>
+    `;
+
+    const chartSection = document.createElement('div');
+    chartSection.style.marginBottom = '16px';
+    chartSection.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px;">
+        <div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;">
+          <h3 style="margin:0 0 8px;font-size:13px;color:#475569;">Owner Items Status</h3>
+          ${
+            Object.keys(ownerStatusCounts).length === 0
+              ? `<div style="font-size:12px;color:#94a3b8;">No owner items.</div>`
+              : Object.entries(ownerStatusCounts)
+                  .map(([status, count]) => statusRow(status, count, ownerItems.length))
+                  .join('')
+          }
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;">
+          <h3 style="margin:0 0 8px;font-size:13px;color:#475569;">Contractor Items Status</h3>
+          ${
+            Object.keys(contractorStatusCounts).length === 0
+              ? `<div style="font-size:12px;color:#94a3b8;">No contractor items.</div>`
+              : Object.entries(contractorStatusCounts)
+                  .map(([status, count]) => statusRow(status, count, contractorItems.length))
+                  .join('')
+          }
+        </div>
+      </div>
+    `;
+
+    const projectPhotos = photos.filter((photo) => photo.project_id === project.id).slice(0, 10);
+    const photosSection = document.createElement('div');
+    photosSection.style.marginBottom = '16px';
+    if (projectPhotos.length > 0) {
+      const photoHtml = [];
+      for (const photo of projectPhotos) {
+        const imageUrl = await getStorageUrl('project-photos', photo.storage_path);
+        const dataUrl = await loadImageAsDataUrl(imageUrl);
+        if (!dataUrl) continue;
+        photoHtml.push(`
+          <div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+            <img src="${dataUrl}" style="width:100%;height:120px;object-fit:cover;" />
+            <div style="padding:6px 8px;font-size:11px;color:#475569;">${photo.name}</div>
+          </div>
+        `);
+      }
+
+      photosSection.innerHTML = `
+        <h3 style="margin:0 0 8px;font-size:13px;color:#475569;">Latest Progress Photos</h3>
+        <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:10px;">
+          ${photoHtml.join('')}
+        </div>
+      `;
+    }
+
+    const ownerTable = document.createElement('div');
+    ownerTable.innerHTML = `
+      <h3 style="margin:0 0 6px;font-size:13px;color:#475569;">Owner Items</h3>
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;margin-bottom:16px;">
+        <thead>
+          <tr style="background:#f8fafc;text-align:left;font-size:12px;color:#64748b;">
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Item</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Category</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Qty</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Status</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Company</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">LPO</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${
+            ownerItems.length === 0
+              ? `<tr><td colspan="6" style="padding:10px;font-size:12px;color:#94a3b8;">No owner items.</td></tr>`
+              : ownerItems
+                  .map(
+                    (item) => `
+            <tr style="font-size:12px;color:#0f172a;">
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.name}</td>
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.category}</td>
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.quantity}</td>
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.status}</td>
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.company || '—'}</td>
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.lpo_status}</td>
+            </tr>
+          `
+                  )
+                  .join('')
+          }
+        </tbody>
+      </table>
+    `;
+
+    const contractorTable = document.createElement('div');
+    contractorTable.innerHTML = `
+      <h3 style="margin:0 0 6px;font-size:13px;color:#475569;">Contractor Items</h3>
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;">
+        <thead>
+          <tr style="background:#f8fafc;text-align:left;font-size:12px;color:#64748b;">
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Item</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Category</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Work</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Completion</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Status</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Company</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${
+            contractorItems.length === 0
+              ? `<tr><td colspan="6" style="padding:10px;font-size:12px;color:#94a3b8;">No contractor items.</td></tr>`
+              : contractorItems
+                  .map(
+                    (item) => `
+            <tr style="font-size:12px;color:#0f172a;">
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.name}</td>
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.category}</td>
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.workDescription || '—'}</td>
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.completionPercentage || 0}%</td>
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.status}</td>
+              <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${item.company || '—'}</td>
+            </tr>
+          `
+                  )
+                  .join('')
+          }
+        </tbody>
+      </table>
+    `;
+
+    section.appendChild(chartSection);
+    if (projectPhotos.length > 0) {
+      section.appendChild(photosSection);
+    }
+    section.appendChild(ownerTable);
+    section.appendChild(contractorTable);
+    wrapper.appendChild(section);
+  }
+
+  const options = {
+    margin: [10, 10, 14, 10],
+    filename: `brief-items-report-${new Date().toISOString().split('T')[0]}.pdf`,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+  };
+
+  await html2pdf().from(wrapper).set(options).save();
+};

@@ -4,6 +4,7 @@ export type ItemStatus = 'Ordered' | 'Not Ordered' | 'Partially Ordered' | 'Deli
 export type LPOStatus = 'LPO Received' | 'LPO Pending' | 'N/A';
 export type InvoiceStatus = 'Not Submitted' | 'Submitted' | 'Approved' | 'Paid' | 'Rejected';
 export type InvoiceType = '25%' | '50%' | '100%';
+export type SnagStatus = 'Open' | 'In Progress' | 'Resolved' | 'Closed';
 // Changed to accept any string for manual entry
 export type ItemCategory = string;
 export type ProjectScope = 'Owner' | 'Contractor';
@@ -62,6 +63,7 @@ export interface ProjectItem {
   lpo_status: LPOStatus;
   notes: string;
   scope: ProjectScope;
+  order_index?: number;
   // These properties map to snake_case DB fields:
   completionPercentage?: number;  // Maps to completion_percentage in database
   workDescription?: string;       // Maps to work_description in database
@@ -121,6 +123,17 @@ export interface Task {
   assigned_to: string | null;
   due_date: string | null;
   order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Snag {
+  id: string;
+  project_id: string;
+  title: string;
+  description: string;
+  status: SnagStatus;
+  contractor_name?: string | null;
   created_at: string;
   updated_at: string;
 }

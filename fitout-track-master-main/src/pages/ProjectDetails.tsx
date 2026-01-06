@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Calendar, FileText, CreditCard, Clock, AlertTriangle, Kanban } from 'lucide-react';
+import { ArrowLeft, Edit, Calendar, FileText, CreditCard, Clock, AlertTriangle, Kanban, ClipboardList } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,7 +22,7 @@ import ItemsTable from '@/components/Items/ItemsTable';
 import DrawingsGrid from '@/components/Drawings/DrawingsGrid';
 import InvoiceTable from '@/components/Invoices/InvoiceTable';
 import TimelineView from '@/components/Timeline/TimelineView';
-import { getProjectById, getItemsByProjectId, getDrawingsByProjectId, getInvoicesByProjectId, getTimelineByProjectId, updateProject } from '@/lib/api';
+import { getProjectById, getItemsByProjectId, getDrawingsByProjectId, getInvoicesByProjectId, getTimelineByProjectId, getSnagsByProjectId, updateProject } from '@/lib/api';
 import { calculateProjectProgress } from '@/lib/progressCalculation';
 import { toast } from 'sonner';
 import {
@@ -47,6 +47,8 @@ import { Project, ProjectStatus } from '@/lib/types';
 import ProjectUsers from '@/components/ProjectUsers';
 import { useAuth } from '@/contexts/AuthContext';
 import KanbanBoard from '@/components/Kanban/KanbanBoard';
+import SnagsTable from '@/components/Snags/SnagsTable';
+import { getProjectHealth } from '@/utils/projectInsights';
 
 const ProjectDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -93,7 +95,9 @@ const ProjectDetails = () => {
     location: '',
     mainContractor: '',
     status: 'Not Started' as ProjectStatus,
-    progress: 0
+    progress: 0,
+    startDate: '',
+    endDate: ''
   });
   
   // Fetch related data - moved outside of conditional rendering
@@ -120,6 +124,12 @@ const ProjectDetails = () => {
     queryFn: () => getTimelineByProjectId(id || ''),
     enabled: !!id
   });
+
+  const { data: snags = [] } = useQuery({
+    queryKey: ['projectSnags', id],
+    queryFn: () => getSnagsByProjectId(id || ''),
+    enabled: !!id
+  });
   
   // Update local state when project data is loaded
   useEffect(() => {
@@ -130,7 +140,9 @@ const ProjectDetails = () => {
         location: project.location || '',
         mainContractor: project.main_contractor || '',
         status: project.status as ProjectStatus,
-        progress: project.progress || 0
+        progress: project.progress || 0,
+        startDate: project.start_date ? project.start_date.split('T')[0] : '',
+        endDate: project.end_date ? project.end_date.split('T')[0] : ''
       });
     }
   }, [project]);
@@ -222,7 +234,9 @@ const ProjectDetails = () => {
         location: editForm.location,
         main_contractor: editForm.mainContractor,
         status: editForm.status as ProjectStatus,
-        progress: editForm.progress
+        progress: editForm.progress,
+        start_date: editForm.startDate || null,
+        end_date: editForm.endDate || null
       };
       
       console.log("Submitting project update:", progressUpdate);
@@ -260,6 +274,8 @@ const ProjectDetails = () => {
   const delayedMilestones = milestones.filter(m => 
     m.status === 'Delayed' || (new Date(m.planned_date) < new Date() && m.status !== 'Completed')
   ).length;
+  const openSnags = snags.filter(snag => snag.status === 'Open').length;
+  const projectHealth = getProjectHealth(project, milestones);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -269,6 +285,19 @@ const ProjectDetails = () => {
       case 'On Hold': return 'bg-warning';
       case 'Not Started': return 'bg-gray-400';
       default: return 'bg-gray-400';
+    }
+  };
+
+  const getHealthColor = (tone: string) => {
+    switch (tone) {
+      case 'good':
+        return 'bg-emerald-500';
+      case 'warn':
+        return 'bg-amber-500';
+      case 'risk':
+        return 'bg-rose-500';
+      default:
+        return 'bg-gray-400';
     }
   };
   
@@ -288,7 +317,7 @@ const ProjectDetails = () => {
               Back to Dashboard
             </Button>
             
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
                 <div className="flex items-center mb-1">
                   {project.chain === 'BK' ? (
@@ -301,12 +330,15 @@ const ProjectDetails = () => {
                 <p className="text-gray-600 mt-1">{project.location}</p>
               </div>
               
-              <div className="mt-4 md:mt-0 flex flex-col sm:flex-row md:items-end gap-3">
-                <Badge 
-                  className={`${getStatusColor(project.status)} text-white`}
-                >
-                  {project.status}
-                </Badge>
+              <div className="mt-4 md:mt-0 flex flex-col sm:flex-row md:items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className={`${getStatusColor(project.status)} text-white`}>
+                    {project.status}
+                  </Badge>
+                  <Badge className={`${getHealthColor(projectHealth.tone)} text-white`}>
+                    {projectHealth.label}
+                  </Badge>
+                </div>
                 <Button onClick={handleEditModalOpen}>
                   <Edit className="h-4 w-4 mr-2" />
                   Edit Project
@@ -315,7 +347,7 @@ const ProjectDetails = () => {
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium">Progress</CardTitle>
@@ -396,6 +428,23 @@ const ProjectDetails = () => {
                 </div>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Snags</CardTitle>
+              </CardHeader>
+              <CardContent className="flex items-center">
+                <div className="mr-3 bg-rose-100 p-2 rounded-full">
+                  <ClipboardList className="h-5 w-5 text-rose-600" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold">{snags.length}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {openSnags} opening snag{openSnags === 1 ? '' : 's'}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
@@ -446,6 +495,13 @@ const ProjectDetails = () => {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div>
+                  <h4 className="text-sm font-medium">Health</h4>
+                  <Badge className={`${getHealthColor(projectHealth.tone)} text-white`}>
+                    {projectHealth.label}
+                  </Badge>
+                  <p className="text-xs text-muted-foreground mt-1">{projectHealth.reason}</p>
+                </div>
+                <div>
                   <h4 className="text-sm font-medium">Created On</h4>
                   <p className="text-sm text-muted-foreground">
                     {new Date(project.created_at).toLocaleDateString()}
@@ -472,7 +528,7 @@ const ProjectDetails = () => {
           </div>
           
           <Tabs value={activeTab} onValueChange={handleTabChange} className="mt-6">
-            <TabsList className="w-full md:w-auto grid grid-cols-2 md:grid-cols-5 mb-4">
+            <TabsList className="w-full md:w-auto grid grid-cols-2 md:grid-cols-6 mb-4">
               <TabsTrigger value="items" className="flex items-center">
                 <FileText className="h-4 w-4 mr-2" />
                 Items & Orders
@@ -492,6 +548,10 @@ const ProjectDetails = () => {
               <TabsTrigger value="kanban" className="flex items-center">
                 <Kanban className="h-4 w-4 mr-2" />
                 Kanban
+              </TabsTrigger>
+              <TabsTrigger value="snags" className="flex items-center">
+                <ClipboardList className="h-4 w-4 mr-2" />
+                Snags
               </TabsTrigger>
             </TabsList>
             
@@ -526,6 +586,10 @@ const ProjectDetails = () => {
             
             <TabsContent value="kanban" className="mt-4">
               <KanbanBoard projectId={project.id} />
+            </TabsContent>
+
+            <TabsContent value="snags" className="mt-4">
+              <SnagsTable projectId={project.id} />
             </TabsContent>
           </Tabs>
           
@@ -614,6 +678,29 @@ const ProjectDetails = () => {
                     min={0}
                     max={100}
                     required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="startDate">Start Date</Label>
+                  <Input
+                    type="date"
+                    id="startDate"
+                    name="startDate"
+                    value={editForm.startDate}
+                    onChange={handleEditFormChange}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="endDate">End Date</Label>
+                  <Input
+                    type="date"
+                    id="endDate"
+                    name="endDate"
+                    value={editForm.endDate}
+                    onChange={handleEditFormChange}
                   />
                 </div>
               </div>

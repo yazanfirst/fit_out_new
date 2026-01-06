@@ -91,6 +91,20 @@ const StatusDistributionChart: React.FC<StatusDistributionChartProps> = ({
     );
   };
 
+  if (chartData.length === 0) {
+    return (
+      <Card className="w-full shadow-md">
+        <CardHeader className="pb-2">
+          <CardTitle>{title}</CardTitle>
+          {description && <CardDescription>{description}</CardDescription>}
+        </CardHeader>
+        <CardContent className="py-16 text-center text-sm text-muted-foreground">
+          No project statuses available.
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="w-full shadow-md">
       <CardHeader className="pb-2">
@@ -124,12 +138,15 @@ const StatusDistributionChart: React.FC<StatusDistributionChartProps> = ({
                 ))}
               </Pie>
               <Tooltip 
-                formatter={(value, name) => [`${value} projects`, name]}
-                contentStyle={{ 
-                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                  border: '1px solid #e2e8f0'
+                content={({ active, payload }) => {
+                  if (!active || !payload || payload.length === 0) return null;
+                  const item = payload[0];
+                  return (
+                    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
+                      <div className="text-sm font-semibold text-slate-900">{item.name}</div>
+                      <div className="text-xs text-slate-500">{item.value} projects</div>
+                    </div>
+                  );
                 }}
               />
               <Legend 

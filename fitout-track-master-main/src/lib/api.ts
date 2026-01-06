@@ -1,9 +1,10 @@
-import { Project, ProjectStatus, TimelineMilestone, Drawing, ItemCategory, ProjectItem, Invoice, InvoiceStatus, Task } from './types';
+import { Project, ProjectStatus, TimelineMilestone, Drawing, ItemCategory, ProjectItem, Invoice, InvoiceStatus, Task, Snag } from './types';
 import { supabase, STORAGE_BUCKETS, sanitizeUuid, validateId, sanitizeString } from '@/integrations/supabase/client';
 import { getPublicStorageUrl } from './storage';
 import { createAuditLog, getCurrentUser } from './auth';
 
 const API_BASE_URL = 'http://localhost:3000/api';
+
 
 // Helper function removed as we'll always use database
 
@@ -190,6 +191,7 @@ export async function getItemsByProjectId(projectId: string): Promise<ProjectIte
       .from('project_items')
       .select('*')
       .eq('project_id', projectId)
+      .order('order_index', { ascending: true, nullsFirst: true })
       .order('created_at');
 
     if (error) {
@@ -210,11 +212,61 @@ export async function getItemsByProjectId(projectId: string): Promise<ProjectIte
   }
 }
 
+export async function getItemsByProjectIds(projectIds: string[]): Promise<ProjectItem[]> {
+  if (projectIds.length === 0) {
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('project_items')
+      .select('*')
+      .in('project_id', projectIds)
+      .order('order_index', { ascending: true, nullsFirst: true })
+      .order('created_at');
+
+    if (error) {
+      console.error("Error fetching items by project IDs:", error);
+      throw error;
+    }
+
+    const transformedData = data.map(item => ({
+      ...item,
+      completionPercentage: item.completion_percentage ?? 0,
+      workDescription: item.work_description ?? ''
+    }));
+
+    return transformedData as ProjectItem[];
+  } catch (error) {
+    console.error("Unexpected error fetching items by project IDs:", error);
+    return [];
+  }
+}
+
 export async function createItem(item: Omit<ProjectItem, 'id' | 'created_at' | 'updated_at'>): Promise<ProjectItem | null> {
   try {
+    let orderIndex = item.order_index ?? null;
+    if (orderIndex === null || orderIndex === undefined) {
+      const { data: orderData, error: orderError } = await supabase
+        .from('project_items')
+        .select('order_index')
+        .eq('project_id', item.project_id)
+        .eq('scope', item.scope)
+        .order('order_index', { ascending: false })
+        .limit(1);
+
+      if (orderError) {
+        console.error("Error fetching item order index:", orderError);
+      }
+
+      const lastOrderIndex = orderData?.[0]?.order_index ?? -1;
+      orderIndex = lastOrderIndex + 1;
+    }
+
     // Transform client-side property names to database column names
     const dbItem = {
       ...item,
+      order_index: orderIndex,
       completion_percentage: item.completionPercentage,
       work_description: item.workDescription
     };
@@ -303,6 +355,145 @@ export async function deleteItem(id: string): Promise<boolean> {
     return true;
   } catch (error) {
     console.error("Error in deleteItem:", error);
+    return false;
+  }
+}
+
+export async function getSnagsByProjectId(projectId: string): Promise<Snag[]> {
+  try {
+    const { data, error } = await supabase
+      .from('snags')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error("Error fetching snags:", error);
+      throw error;
+    }
+
+    return (data || []) as Snag[];
+  } catch (error) {
+    console.error("Unexpected error fetching snags:", error);
+    return [];
+  }
+}
+
+export async function getSnagsByProjectIds(projectIds: string[]): Promise<Snag[]> {
+  if (projectIds.length === 0) {
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('snags')
+      .select('*')
+      .in('project_id', projectIds)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error("Error fetching snags:", error);
+      throw error;
+    }
+
+    return (data || []) as Snag[];
+  } catch (error) {
+    console.error("Unexpected error fetching snags by project IDs:", error);
+    return [];
+  }
+}
+
+export async function createSnag(snag: Omit<Snag, 'id' | 'created_at' | 'updated_at'>): Promise<Snag | null> {
+  try {
+    const payload = { ...snag };
+    if (!payload.contractor_name) {
+      delete (payload as Partial<Snag>).contractor_name;
+    }
+
+    let { data, error } = await supabase
+      .from('snags')
+      .insert([payload])
+      .select()
+      .single();
+
+    if (error) {
+      const errorMessage = String(error.message || '');
+      if (errorMessage.includes('contractor_name')) {
+        const fallbackPayload = { ...payload };
+        delete (fallbackPayload as Partial<Snag>).contractor_name;
+        const fallback = await supabase
+          .from('snags')
+          .insert([fallbackPayload])
+          .select()
+          .single();
+        data = fallback.data as Snag;
+        error = fallback.error;
+      }
+
+      if (error) {
+        const fallbackMessage = String(error.message || error.details || error.hint || '');
+        console.error("Error creating snag:", error);
+        throw new Error(fallbackMessage || 'Failed to add snag.');
+      }
+    }
+
+    return data as Snag;
+  } catch (error) {
+    const message =
+      error instanceof Error && error.message
+        ? error.message
+        : 'Failed to add snag. Please ensure snags migrations and RLS policy are applied.';
+    console.error("Error in createSnag:", error);
+    throw new Error(message);
+  }
+}
+
+export async function updateSnag(id: string, updates: Partial<Snag>): Promise<Snag | null> {
+  try {
+    const payload = { ...updates };
+    if (payload.contractor_name === '') {
+      payload.contractor_name = null;
+    }
+
+    const { data, error } = await supabase
+      .from('snags')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      const errorMessage = String(error.message || error.details || error.hint || '');
+      console.error("Error updating snag:", error);
+      throw new Error(errorMessage || 'Failed to update snag.');
+    }
+
+    return data as Snag;
+  } catch (error) {
+    const message =
+      error instanceof Error && error.message
+        ? error.message
+        : 'Failed to update snag. Please ensure snags migrations and RLS policy are applied.';
+    console.error("Error in updateSnag:", error);
+    throw new Error(message);
+  }
+}
+
+export async function deleteSnag(id: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('snags')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error("Error deleting snag:", error);
+      throw error;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error in deleteSnag:", error);
     return false;
   }
 }

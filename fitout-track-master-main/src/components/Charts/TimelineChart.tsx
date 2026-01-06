@@ -88,6 +88,20 @@ const TimelineChart: React.FC<TimelineChartProps> = ({
   minDate.setDate(minDate.getDate() - 7);
   maxDate.setDate(maxDate.getDate() + 7);
 
+  if (timelineData.length === 0) {
+    return (
+      <Card className="w-full shadow-md">
+        <CardHeader className="pb-2">
+          <CardTitle>{title}</CardTitle>
+          {description && <CardDescription>{description}</CardDescription>}
+        </CardHeader>
+        <CardContent className="py-16 text-center text-sm text-muted-foreground">
+          No timeline milestones available.
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="w-full shadow-md">
       <CardHeader className="pb-2">
@@ -112,36 +126,41 @@ const TimelineChart: React.FC<TimelineChartProps> = ({
               barGap={0}
               barSize={12}
             >
-              <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
               <XAxis 
                 type="number"
                 domain={[minDate.getTime(), maxDate.getTime()]}
                 tickFormatter={formatDate}
                 padding={{ left: 30, right: 30 }}
+                tick={{ fill: '#64748b', fontSize: 12 }}
+                axisLine={{ stroke: '#e2e8f0' }}
+                tickLine={{ stroke: '#e2e8f0' }}
               />
               <YAxis 
                 dataKey="name" 
                 type="category"
                 width={150}
-                tick={{ fontSize: 12 }}
+                tick={{ fontSize: 12, fill: '#475569' }}
+                axisLine={{ stroke: '#e2e8f0' }}
+                tickLine={{ stroke: '#e2e8f0' }}
               />
               <Tooltip
-                labelFormatter={(label) => {
+                content={({ active, payload, label }) => {
+                  if (!active || !payload || payload.length === 0) return null;
                   const milestone = timelineData.find(m => m.name === label);
-                  return milestone ? milestone.fullName : label;
-                }}
-                formatter={(value, name) => {
-                  const date = new Date(value as number);
-                  return [
-                    date.toLocaleDateString(), 
-                    name === 'planned' ? 'Planned Date' : 'Actual Date'
-                  ];
-                }}
-                contentStyle={{ 
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                  border: '1px solid #e2e8f0'
+                  return (
+                    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
+                      <div className="text-sm font-semibold text-slate-900">
+                        {milestone?.fullName || label}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        Planned: {milestone?.plannedDateFormatted}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        Actual: {milestone?.actualDateFormatted}
+                      </div>
+                    </div>
+                  );
                 }}
               />
               <Legend />

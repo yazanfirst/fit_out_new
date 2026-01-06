@@ -15,6 +15,7 @@ import {
 } from 'recharts';
 import { Project, ProjectStatus } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 interface ProgressChartProps {
   projects: Project[];
@@ -58,11 +59,27 @@ const ProgressChart: React.FC<ProgressChartProps> = ({
     chain: project.chain
   }));
 
+  if (chartData.length === 0) {
+    return (
+      <Card className="w-full shadow-md">
+        <CardHeader className="pb-2">
+          <CardTitle>{title}</CardTitle>
+          {description && <CardDescription>{description}</CardDescription>}
+        </CardHeader>
+        <CardContent className="py-16 text-center text-sm text-muted-foreground">
+          No projects available for this report.
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="w-full shadow-md">
       <CardHeader className="pb-2">
-        <CardTitle>{title}</CardTitle>
-        {description && <CardDescription>{description}</CardDescription>}
+        <div className="flex flex-col gap-1">
+          <CardTitle>{title}</CardTitle>
+          {description && <CardDescription>{description}</CardDescription>}
+        </div>
       </CardHeader>
       <CardContent>
         <div className="h-[400px]">
@@ -72,33 +89,46 @@ const ProgressChart: React.FC<ProgressChartProps> = ({
               margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
               layout="vertical"
             >
-              <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
               <XAxis 
                 type="number"
                 domain={[0, 100]} 
                 unit="%" 
                 tickFormatter={(value) => `${value}%`}
+                tick={{ fill: '#64748b', fontSize: 12 }}
+                axisLine={{ stroke: '#e2e8f0' }}
+                tickLine={{ stroke: '#e2e8f0' }}
               />
               <YAxis 
                 dataKey="name" 
                 type="category"
                 width={150}
-                tick={{ fontSize: 12 }}
+                tick={{ fontSize: 12, fill: '#475569' }}
+                axisLine={{ stroke: '#e2e8f0' }}
+                tickLine={{ stroke: '#e2e8f0' }}
               />
               <Tooltip 
-                formatter={(value) => [`${value}%`, 'Progress']}
-                labelFormatter={(label) => {
+                content={({ active, payload, label }) => {
+                  if (!active || !payload || payload.length === 0) return null;
                   const project = chartData.find(p => p.name === label);
-                  return project ? `${project.fullName} (${project.location})` : label;
-                }}
-                contentStyle={{ 
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                  border: '1px solid #e2e8f0'
+                  return (
+                    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
+                      <div className="text-sm font-semibold text-slate-900">
+                        {project?.fullName || label}
+                      </div>
+                      <div className="text-xs text-slate-500">{project?.location}</div>
+                      <div className="mt-2 flex items-center justify-between text-xs text-slate-600">
+                        <span>Progress</span>
+                        <span className="font-semibold text-slate-900">{payload[0].value}%</span>
+                      </div>
+                      {project?.status ? (
+                        <Badge className="mt-2 bg-slate-900 text-white">{project.status}</Badge>
+                      ) : null}
+                    </div>
+                  );
                 }}
               />
-              <Legend />
+              <Legend verticalAlign="bottom" iconType="circle" wrapperStyle={{ paddingTop: 12 }} />
               <ReferenceLine 
                 x={threshold} 
                 stroke="#0ea5e9" 

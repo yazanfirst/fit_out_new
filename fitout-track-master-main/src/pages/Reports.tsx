@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { 
   Download, 
   FileText, 
@@ -41,7 +41,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import Navbar from '@/components/Navbar';
 import { Project, ProjectStatus, Drawing } from '@/lib/types';
-import { getProjects, getTimelineByProjectId, getItemsByProjectId, getDrawingsByProjectId } from '@/lib/api';
+import { getProjects, getTimelineByProjectId, getItemsByProjectId, getDrawingsByProjectId, getItemsByProjectIds, getSnagsByProjectIds } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Progress } from '@/components/ui/progress';
@@ -50,8 +50,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProgressChart from '@/components/Charts/ProgressChart';
 import StatusDistributionChart from '@/components/Charts/StatusDistributionChart';
 import TimelineChart from '@/components/Charts/TimelineChart';
-import { generatePdfReport, ReportConfig } from '@/utils/reportGenerator';
+import { generatePdfReport, generateBriefItemsPdf, ReportConfig } from '@/utils/reportGenerator';
 import ProjectReport from '@/components/Reports/ProjectReport';
+import SnagsReport from '@/components/Reports/SnagsReport';
+import ItemsProgressBrief from '@/components/Reports/ItemsProgressBrief';
+import { getProjectHealth } from '@/utils/projectInsights';
 
 const Reports = () => {
   const navigate = useNavigate();
@@ -107,11 +110,36 @@ const Reports = () => {
     
     return true;
   });
+
+  const healthSummary = useMemo(() => {
+    return filteredProjects.reduce(
+      (acc, project) => {
+        const health = getProjectHealth(project);
+        acc[health.tone] += 1;
+        return acc;
+      },
+      { good: 0, warn: 0, risk: 0 }
+    );
+  }, [filteredProjects]);
   
   // Get the selected project 
   const selectedProject = selectedProjectId 
     ? projects.find(p => p.id === selectedProjectId) 
     : null;
+
+  const filteredProjectIds = useMemo(() => filteredProjects.map(project => project.id), [filteredProjects]);
+
+  const { data: itemsByProject = [] } = useQuery({
+    queryKey: ['items', filteredProjectIds],
+    queryFn: () => getItemsByProjectIds(filteredProjectIds),
+    enabled: filteredProjectIds.length > 0
+  });
+
+  const { data: snags = [] } = useQuery({
+    queryKey: ['snags', filteredProjectIds],
+    queryFn: () => getSnagsByProjectIds(filteredProjectIds),
+    enabled: filteredProjectIds.length > 0
+  });
   
   // Status color mapping
   const getStatusColor = (status: ProjectStatus) => {
@@ -122,6 +150,19 @@ const Reports = () => {
       case 'On Hold': return 'bg-warning';
       case 'Not Started': return 'bg-gray-400';
       default: return 'bg-gray-400';
+    }
+  };
+
+  const getHealthColor = (tone: string) => {
+    switch (tone) {
+      case 'good':
+        return 'bg-emerald-500';
+      case 'warn':
+        return 'bg-amber-500';
+      case 'risk':
+        return 'bg-rose-500';
+      default:
+        return 'bg-gray-400';
     }
   };
   
@@ -165,6 +206,40 @@ const Reports = () => {
   
   const handleViewProject = (projectId: string) => {
     navigate(`/project/${projectId}`);
+  };
+
+  const handleExportBriefItems = async () => {
+    try {
+      await generateBriefItemsPdf(filteredProjects, itemsByProject, 'Brief Items Progress Report');
+      toast.success('Brief items report generated successfully');
+    } catch (error) {
+      console.error('Error generating brief items report:', error);
+      toast.error('Failed to generate brief items report');
+    }
+  };
+
+  const handleExportProjectBriefItems = async (projectId: string) => {
+    const project = filteredProjects.find((item) => item.id === projectId);
+    if (!project) {
+      toast.error('Project not found for export');
+      return;
+    }
+
+    try {
+      let projectPhotos: Drawing[] = [];
+      try {
+        projectPhotos = await getDrawingsByProjectId(projectId);
+        projectPhotos = projectPhotos.filter((item) => item.type === 'Photo').slice(0, 10);
+      } catch (error) {
+        console.error('Error fetching project photos:', error);
+      }
+
+      await generateBriefItemsPdf([project], itemsByProject, `${project.name} - Brief Items Report`, projectPhotos);
+      toast.success('Project brief items report generated successfully');
+    } catch (error) {
+      console.error('Error generating project brief items report:', error);
+      toast.error('Failed to generate project brief items report');
+    }
   };
 
   const handleBackToReports = () => {
@@ -224,7 +299,7 @@ const Reports = () => {
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Reports</h1>
               <p className="text-gray-600 mt-1">
-                Generate and export project reports
+                Generate and export professional project reports
               </p>
             </div>
             
@@ -243,7 +318,7 @@ const Reports = () => {
             <CardHeader className="pb-3">
               <CardTitle>Filter Reports</CardTitle>
               <CardDescription>
-                Filter and search across projects to generate custom reports
+                Filter and search across projects for focused, professional reporting
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -301,6 +376,36 @@ const Reports = () => {
               </div>
             </CardContent>
           </Card>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <Card className="shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">On Track</CardTitle>
+              </CardHeader>
+              <CardContent className="flex items-center justify-between">
+                <div className="text-2xl font-bold">{healthSummary.good}</div>
+                <span className="inline-flex h-3 w-3 rounded-full bg-emerald-500" />
+              </CardContent>
+            </Card>
+            <Card className="shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Needs Attention</CardTitle>
+              </CardHeader>
+              <CardContent className="flex items-center justify-between">
+                <div className="text-2xl font-bold">{healthSummary.warn}</div>
+                <span className="inline-flex h-3 w-3 rounded-full bg-amber-500" />
+              </CardContent>
+            </Card>
+            <Card className="shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">At Risk</CardTitle>
+              </CardHeader>
+              <CardContent className="flex items-center justify-between">
+                <div className="text-2xl font-bold">{healthSummary.risk}</div>
+                <span className="inline-flex h-3 w-3 rounded-full bg-rose-500" />
+              </CardContent>
+            </Card>
+          </div>
           
           <Card className="shadow-md">
             <CardHeader>
@@ -316,6 +421,8 @@ const Reports = () => {
                     <TabsList>
                       <TabsTrigger value="table">Table View</TabsTrigger>
                       <TabsTrigger value="charts">Charts</TabsTrigger>
+                      <TabsTrigger value="items-brief">Brief Items</TabsTrigger>
+                      <TabsTrigger value="snags">Snags</TabsTrigger>
                     </TabsList>
                   </Tabs>
                 </div>
@@ -398,7 +505,9 @@ const Reports = () => {
                             </td>
                           </tr>
                         ) : (
-                          filteredProjects.map((project) => (
+                          filteredProjects.map((project) => {
+                            const projectHealth = getProjectHealth(project);
+                            return (
                             <tr 
                               key={project.id}
                               className="hover:bg-gray-50 cursor-pointer"
@@ -416,9 +525,14 @@ const Reports = () => {
                                 </div>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
-                                <Badge className={`${getStatusColor(project.status)} text-white`}>
-                                  {project.status}
-                                </Badge>
+                                <div className="flex flex-col gap-1">
+                                  <Badge className={`${getStatusColor(project.status)} text-white w-fit`}>
+                                    {project.status}
+                                  </Badge>
+                                  <Badge className={`${getHealthColor(projectHealth.tone)} text-white w-fit`}>
+                                    {projectHealth.label}
+                                  </Badge>
+                                </div>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="w-full">
@@ -456,7 +570,8 @@ const Reports = () => {
                                 </div>
                               </td>
                             </tr>
-                          ))
+                          );
+                          })
                         )}
                       </tbody>
                     </table>
@@ -482,6 +597,23 @@ const Reports = () => {
                       />
                     </div>
                   </div>
+                </TabsContent>
+
+                <TabsContent value="items-brief" className="p-0 m-0">
+                  <ItemsProgressBrief
+                    projects={filteredProjects}
+                    items={itemsByProject}
+                    onExport={handleExportBriefItems}
+                    onExportProject={handleExportProjectBriefItems}
+                  />
+                </TabsContent>
+
+                <TabsContent value="snags" className="p-0 m-0">
+                  <SnagsReport
+                    snags={snags}
+                    projects={filteredProjects}
+                    onViewProject={handleViewProject}
+                  />
                 </TabsContent>
               </Tabs>
               
