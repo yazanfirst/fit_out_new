@@ -246,13 +246,54 @@ const TimelineView: React.FC<TimelineViewProps> = ({ projectId }) => {
     }
   };
 
-  const parseDateString = (value: string) => {
-    if (!value) return null;
-    const parsed = new Date(value);
+  const parseDateString = (value: string | number | null | undefined) => {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') {
+      const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+      const parsed = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+
+    const numericValue = Number(value);
+    if (Number.isFinite(numericValue)) {
+      const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+      const parsed = new Date(excelEpoch.getTime() + numericValue * 24 * 60 * 60 * 1000);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+
+    const stringValue = String(value);
+    const parsed = new Date(stringValue);
     if (!Number.isNaN(parsed.getTime())) {
       return parsed;
     }
-    const slashMatch = value.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+
+    const monthMap: Record<string, number> = {
+      jan: 0,
+      feb: 1,
+      mar: 2,
+      apr: 3,
+      may: 4,
+      jun: 5,
+      jul: 6,
+      aug: 7,
+      sep: 8,
+      oct: 9,
+      nov: 10,
+      dec: 11,
+    };
+
+    const textMatch = stringValue.match(/(\d{1,2})[\/\-\s]([A-Za-z]{3,})[\/\-\s](\d{2,4})/);
+    if (textMatch) {
+      const [, day, monthText, year] = textMatch;
+      const monthIndex = monthMap[monthText.toLowerCase().slice(0, 3)];
+      const normalizedYear = year.length === 2 ? `20${year}` : year;
+      if (monthIndex !== undefined) {
+        const date = new Date(Number(normalizedYear), monthIndex, Number(day));
+        return Number.isNaN(date.getTime()) ? null : date;
+      }
+    }
+
+    const slashMatch = stringValue.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
     if (slashMatch) {
       const [, day, month, year] = slashMatch;
       const normalizedYear = year.length === 2 ? `20${year}` : year;
@@ -295,7 +336,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({ projectId }) => {
         .map((row) => {
           const name = String(lookupValue(row, ['Task / Work Item', 'Task', 'Work Item', 'name', 'Milestone'])).trim();
           if (!name) return null;
-          const plannedValue = String(lookupValue(row, ['Start Date', 'Planned Date', 'planned_date', 'start_date'])).trim();
+          const plannedValue = lookupValue(row, ['Start Date', 'Planned Date', 'planned_date', 'start_date']);
           const plannedDate = parseDateString(plannedValue);
           if (!plannedDate) return null;
           return {
