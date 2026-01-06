@@ -95,7 +95,9 @@ const ProjectDetails = () => {
     location: '',
     mainContractor: '',
     status: 'Not Started' as ProjectStatus,
-    progress: 0
+    progress: 0,
+    startDate: '',
+    endDate: ''
   });
   
   // Fetch related data - moved outside of conditional rendering
@@ -138,7 +140,9 @@ const ProjectDetails = () => {
         location: project.location || '',
         mainContractor: project.main_contractor || '',
         status: project.status as ProjectStatus,
-        progress: project.progress || 0
+        progress: project.progress || 0,
+        startDate: project.start_date ? project.start_date.split('T')[0] : '',
+        endDate: project.end_date ? project.end_date.split('T')[0] : ''
       });
     }
   }, [project]);
@@ -230,7 +234,9 @@ const ProjectDetails = () => {
         location: editForm.location,
         main_contractor: editForm.mainContractor,
         status: editForm.status as ProjectStatus,
-        progress: editForm.progress
+        progress: editForm.progress,
+        start_date: editForm.startDate || null,
+        end_date: editForm.endDate || null
       };
       
       console.log("Submitting project update:", progressUpdate);
@@ -672,6 +678,29 @@ const ProjectDetails = () => {
                     min={0}
                     max={100}
                     required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="startDate">Start Date</Label>
+                  <Input
+                    type="date"
+                    id="startDate"
+                    name="startDate"
+                    value={editForm.startDate}
+                    onChange={handleEditFormChange}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="endDate">End Date</Label>
+                  <Input
+                    type="date"
+                    id="endDate"
+                    name="endDate"
+                    value={editForm.endDate}
+                    onChange={handleEditFormChange}
                   />
                 </div>
               </div>
