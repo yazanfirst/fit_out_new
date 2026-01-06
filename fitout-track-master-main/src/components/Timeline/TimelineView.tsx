@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Edit, Trash2, Plus, Check, ArrowRight, AlertCircle, Calendar as CalendarIcon, List as ListIcon } from 'lucide-react';
+import { Edit, Trash2, Plus, Check, ArrowRight, AlertCircle, Calendar as CalendarIcon, List as ListIcon, Upload } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -61,6 +62,8 @@ const TimelineView: React.FC<TimelineViewProps> = ({ projectId }) => {
   const [editingMilestone, setEditingMilestone] = useState<TimelineMilestone | null>(null);
   const [formData, setFormData] = useState<MilestoneFormData>(initialFormData);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   
   const queryClient = useQueryClient();
   
@@ -242,6 +245,100 @@ const TimelineView: React.FC<TimelineViewProps> = ({ projectId }) => {
       deleteMutation.mutate(id);
     }
   };
+
+  const parseDateString = (value: string) => {
+    if (!value) return null;
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+    const slashMatch = value.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+    if (slashMatch) {
+      const [, day, month, year] = slashMatch;
+      const normalizedYear = year.length === 2 ? `20${year}` : year;
+      const date = new Date(`${normalizedYear}-${month}-${day}`);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+    return null;
+  };
+
+  const handleTimelineUpload = async (file: File) => {
+    try {
+      setIsUploading(true);
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      if (!worksheet) {
+        toast.error('No worksheet found in the Excel file.');
+        return;
+      }
+
+      const rows = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: '' });
+      if (rows.length === 0) {
+        toast.error('The Excel file is empty.');
+        return;
+      }
+
+      const lookupValue = (row: Record<string, any>, keys: string[]) => {
+        const entry = keys.find((key) => Object.prototype.hasOwnProperty.call(row, key));
+        if (entry) return row[entry];
+        const lowerCaseRow = Object.keys(row).reduce<Record<string, any>>((acc, key) => {
+          acc[key.toLowerCase()] = row[key];
+          return acc;
+        }, {});
+        const lowerKey = keys.map((key) => key.toLowerCase()).find((key) => key in lowerCaseRow);
+        return lowerKey ? lowerCaseRow[lowerKey] : '';
+      };
+
+      const milestonesToCreate = rows
+        .map((row) => {
+          const name = String(lookupValue(row, ['Task / Work Item', 'Task', 'Work Item', 'name', 'Milestone'])).trim();
+          if (!name) return null;
+          const plannedValue = String(lookupValue(row, ['Start Date', 'Planned Date', 'planned_date', 'start_date'])).trim();
+          const plannedDate = parseDateString(plannedValue);
+          if (!plannedDate) return null;
+          return {
+            project_id: projectId,
+            name,
+            planned_date: plannedDate.toISOString(),
+            actual_date: null,
+            status: 'Not Started' as MilestoneStatus,
+            notes: '',
+          };
+        })
+        .filter((item): item is Omit<TimelineMilestone, 'id' | 'created_at' | 'updated_at'> => item !== null);
+
+      if (milestonesToCreate.length === 0) {
+        toast.error('No valid rows found. Please verify task names and start dates.');
+        return;
+      }
+
+      const results = await Promise.allSettled(milestonesToCreate.map((item) => createMilestone(item)));
+      const successCount = results.filter((result) => result.status === 'fulfilled').length;
+      const failureCount = results.length - successCount;
+
+      if (successCount > 0) {
+        const newProgress = await calculateProjectProgress(projectId);
+        await updateProject(projectId, { progress: newProgress });
+        queryClient.invalidateQueries({ queryKey: ['timeline', projectId] });
+        queryClient.invalidateQueries({ queryKey: ['projects'] });
+      }
+
+      if (failureCount > 0) {
+        toast.warning(`Uploaded ${successCount} milestones, ${failureCount} failed.`);
+      } else {
+        toast.success(`Uploaded ${successCount} milestones successfully.`);
+      }
+
+      setIsUploadModalOpen(false);
+    } catch (error) {
+      console.error('Error uploading timeline milestones:', error);
+      toast.error('Failed to upload milestones. Please check the file format.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
   
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -277,7 +374,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({ projectId }) => {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <div className="flex items-center space-x-2">
           <Button
             variant={viewMode === 'list' ? 'default' : 'outline'}
@@ -297,10 +394,16 @@ const TimelineView: React.FC<TimelineViewProps> = ({ projectId }) => {
           </Button>
         </div>
         {hasPermission('create', 'timeline') && (
-          <Button onClick={() => handleOpenModal()}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Milestone
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setIsUploadModalOpen(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              Upload Excel
+            </Button>
+            <Button onClick={() => handleOpenModal()}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Milestone
+            </Button>
+          </div>
         )}
       </div>
 
@@ -499,6 +602,45 @@ const TimelineView: React.FC<TimelineViewProps> = ({ projectId }) => {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Upload Timeline (Excel)</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="rounded-md border p-3 text-sm text-muted-foreground">
+              <p className="font-medium text-gray-700 mb-2">Expected columns</p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>Task / Work Item (or Task / Work Item name)</li>
+                <li>Start Date (planned date)</li>
+              </ul>
+              <p className="mt-2 text-xs">Dates can be formatted like 25-Dec-2025 or 25/12/2025.</p>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="timeline-upload">Select Excel file</Label>
+              <Input
+                id="timeline-upload"
+                type="file"
+                accept=".xlsx"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) {
+                    handleTimelineUpload(file);
+                    event.target.value = '';
+                  }
+                }}
+                disabled={isUploading}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsUploadModalOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
